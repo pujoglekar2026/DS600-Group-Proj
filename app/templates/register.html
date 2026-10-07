@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Create account{% endblock %}
+{% block main_class %}auth-page{% endblock %}
+{% block content %}
+<div class="auth-card">
+  <div class="brand big">Nimbus <span>RM</span></div>
+  <p class="muted">Create a relationship-manager account.</p>
+  <form method="post">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <label>Full name <input name="full_name" required value="{{ request.form.full_name }}"></label>
+    <label>Username <input name="username" autocomplete="username" required value="{{ request.form.username }}"></label>
+    <label>Password <span class="hint">at least 8 characters</span>
+      <input name="password" type="password" autocomplete="new-password" minlength="8" required></label>
+    <button class="btn primary wide">Create account</button>
+  </form>
+  <p class="muted small">Already registered? <a href="{{ url_for('auth.login') }}">Log in</a></p>
+</div>
+{% endblock %}

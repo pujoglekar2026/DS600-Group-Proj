@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit' if snap else 'Record' }} discussion{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>{{ 'Edit discussion' if snap else 'Record a client discussion' }}</h1>
+    <p class="muted">Save the price at the time you spoke and what the client cared about.</p>
+  </div>
+</div>
+
+<form method="post" class="card form narrow" id="snapshot-form">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+
+  <label>Client
+    <select name="client_id" id="client-select" required>
+      <option value="" disabled {{ 'selected' if not form.get('client_id') }}>Choose a client…</option>
+      {% for c in clients %}<option value="{{ c.id }}" {{ 'selected' if form.get('client_id')|string == c.id|string }}>{{ c.label }}</option>{% endfor %}
+      <option value="__new__" {{ 'selected' if form.get('client_id') == '__new__' or not clients }}>+ New client…</option>
+    </select>
+  </label>
+  <fieldset id="new-client" class="subfields" hidden>
+    <legend>New client</legend>
+    {% with prefix='new_' %}{% include "_client_fields.html" %}{% endwith %}
+  </fieldset>
+
+  <div class="form-row">
+    <label>Ticker
+      <input name="ticker" id="ticker" value="{{ form.get('ticker','') }}" placeholder="e.g. D05.SI" required autocomplete="off" style="text-transform:uppercase"></label>
+    <label>Price at discussion <span class="hint">leave blank to use the latest price</span>
+      <div class="input-btn">
+        <input name="price" id="price" inputmode="decimal" value="{{ form.get('price','') }}">
+        <button type="button" class="btn" id="fetch-price">Get price</button>
+      </div></label>
+  </div>
+  <p class="muted small" id="quote-info"></p>
+
+  <div class="form-row">
+    <label>Date of discussion <input type="date" name="discussed_on" value="{{ form.get('discussed_on') or today.isoformat() }}"></label>
+    <label>Client interest
+      <select name="interest_level">
+        {% for l in levels %}<option {{ 'selected' if (form.get('interest_level') or 'Medium') == l }}>{{ l }}</option>{% endfor %}
+      </select></label>
+  </div>
+
+  <label>Topics / tags <span class="hint">comma separated, e.g. dividends, ESG, long term</span>
+    <input name="tags" value="{{ form.get('tags','') }}" maxlength="255"></label>
+  <label>Notes on the client's interest
+    <textarea name="notes" rows="5" placeholder="What did the client ask about? Concerns, time horizon, next steps…">{{ form.get('notes','') }}</textarea></label>
+  <label>Follow up on <span class="hint">optional — shows on your dashboard</span>
+    <input type="date" name="follow_up_on" value="{{ form.get('follow_up_on','') }}"></label>
+
+  <div class="form-actions">
+    <a class="btn" href="{{ url_for('main.snapshots') }}">Cancel</a>
+    <button class="btn primary">{{ 'Save changes' if snap else 'Save discussion' }}</button>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(() => {
+  const sel = document.getElementById('client-select');
+  const box = document.getElementById('new-client');
+  const sync = () => { box.hidden = sel.value !== '__new__'; };
+  sel.addEventListener('change', sync); sync();
+
+  const ticker = document.getElementById('ticker');
+  const price = document.getElementById('price');
+  const info = document.getElementById('quote-info');
+  document.getElementById('fetch-price').addEventListener('click', async () => {
+    const t = ticker.value.trim().toUpperCase();
+    if (!t) { info.textContent = 'Enter a ticker first.'; return; }
+    info.textContent = 'Fetching latest price…';
+    try {
+      const r = await fetch(`/api/quote/${encodeURIComponent(t)}`);
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || 'Could not fetch a price.');
+      price.value = Number(d.price).toFixed(2);
+      info.textContent = `${d.name} · ${d.currency} ${d.price} (close on ${d.as_of})` + (d.demo_data ? ' · demo data' : '');
+    } catch (e) { info.textContent = e.message; }
+  });
+})();
+</script>
+{% endblock %}

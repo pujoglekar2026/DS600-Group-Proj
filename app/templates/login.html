@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Log in{% endblock %}
+{% block main_class %}auth-page{% endblock %}
+{% block content %}
+<div class="auth-card">
+  <div class="brand big">Nimbus <span>RM</span></div>
+  <p class="muted">Compare companies and keep track of client conversations.</p>
+  <form method="post">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <label>Username <input name="username" autocomplete="username" required autofocus></label>
+    <label>Password <input name="password" type="password" autocomplete="current-password" required></label>
+    <button class="btn primary wide">Log in</button>
+  </form>
+  <p class="muted small">New relationship manager? <a href="{{ url_for('auth.register') }}">Create an account</a></p>
+</div>
+{% endblock %}

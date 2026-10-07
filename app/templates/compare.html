@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Compare{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Compare companies</h1>
+    <p class="muted">Enter 2–{{ max_tickers }} ticker symbols. Singapore stocks use the <code>.SI</code> suffix (DBS = <code>D05.SI</code>).</p>
+  </div>
+</div>
+
+<form id="compare-form" class="card compare-form">
+  <div class="field grow">
+    <label for="tickers">Tickers</label>
+    <input id="tickers" name="tickers" value="{{ initial }}" placeholder="AAPL, MSFT, GOOGL" required>
+    <div class="chips small-chips">
+      <span class="muted small">Try:</span>
+      <button type="button" class="chip" data-preset="D05.SI,O39.SI,U11.SI">SG banks</button>
+      <button type="button" class="chip" data-preset="JPM,BAC,GS">US banks</button>
+      <button type="button" class="chip" data-preset="AAPL,MSFT,NVDA">Big tech</button>
+      <button type="button" class="chip" data-preset="KO,WMT">Consumer</button>
+    </div>
+  </div>
+  <div class="field">
+    <label for="period">Period</label>
+    <select id="period" name="period">
+      {% for p in periods %}<option value="{{ p }}" {{ 'selected' if p == '1y' }}>{{ p }}</option>{% endfor %}
+    </select>
+  </div>
+  <button class="btn primary">Compare</button>
+</form>
+
+<div id="status" class="status" hidden></div>
+<div id="demo-banner" class="flash warning" hidden>
+  Live market data was unavailable, so some figures below are <b>demo data</b>. They are for illustration only.
+</div>
+
+<div id="results" hidden>
+  <!-- 1. Price performance -->
+  <section class="card">
+    <div class="section-head">
+      <h2>Price performance</h2>
+      <div class="seg" role="tablist">
+        <button type="button" class="seg-btn active" data-mode="rebased">Rebased to 100</button>
+        <button type="button" class="seg-btn" data-mode="prices">Actual price</button>
+      </div>
+    </div>
+    <p class="muted small" id="mode-help">All prices start at 100 so you can compare returns, whatever each share costs.</p>
+    <div class="chart-wrap"><canvas id="price-chart"></canvas></div>
+  </section>
+
+  <!-- 2. Summary table -->
+  <section class="card">
+    <h2>Summary</h2>
+    <div class="table-wrap"><table class="table" id="summary-table"></table></div>
+    <p class="muted small">Volatility is annualised from daily returns. Max drawdown is the largest fall from a previous peak during the period.</p>
+  </section>
+
+  <!-- 3. Correlation -->
+  <section class="card">
+    <h2>How closely do they move together?</h2>
+    <p class="muted small">Correlation of daily returns: 1 means they move in lockstep, 0 means no relationship. Low correlation helps diversify a client's portfolio.</p>
+    <div class="table-wrap"><table class="table corr" id="corr-table"></table></div>
+  </section>
+
+  <!-- 4. Fundamentals with industry templates -->
+  <section class="card">
+    <div class="section-head">
+      <h2>Financial ratios &amp; trends</h2>
+      <label class="inline">Industry template
+        <select id="template-select">
+          {% for key, t in templates.items() %}<option value="{{ key }}">{{ t.label }}</option>{% endfor %}
+        </select>
+      </label>
+    </div>
+    <p class="muted small" id="template-desc"></p>
+    <div class="table-wrap"><table class="table" id="valuation-table"></table></div>
+    <div id="trend-charts" class="trend-grid"></div>
+  </section>
+
+  <!-- 5. Save for a client -->
+  <section class="card">
+    <h2>Save for a client conversation</h2>
+    <p class="muted small">Record today's price and your notes against a client so you can pick up the conversation later.</p>
+    <div id="save-buttons" class="chips"></div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+  window.NIMBUS = { newSnapshotUrl: "{{ url_for('main.snapshot_new') }}" };
+</script>
+<script src="{{ url_for('static', filename='js/compare.js') }}"></script>
+{% endblock %}

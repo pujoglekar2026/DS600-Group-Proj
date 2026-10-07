@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Good to see you, {{ g.user.full_name.split(' ')[0] }}</h1>
+    <p class="muted">{{ today.strftime('%A, %d %B %Y') }}</p>
+  </div>
+  <div class="actions">
+    <a class="btn" href="{{ url_for('main.snapshot_new') }}">+ Record discussion</a>
+    <a class="btn primary" href="{{ url_for('main.compare') }}">Compare companies</a>
+  </div>
+</div>
+
+<section class="tiles">
+  <div class="tile"><div class="tile-label">Clients</div><div class="tile-value">{{ stats.clients }}</div></div>
+  <div class="tile"><div class="tile-label">Discussions saved</div><div class="tile-value">{{ stats.snapshots }}</div></div>
+  <div class="tile"><div class="tile-label">This month</div><div class="tile-value">{{ stats.this_month }}</div></div>
+  <div class="tile {{ 'alert' if stats.due }}"><div class="tile-label">Follow-ups due</div><div class="tile-value">{{ stats.due }}</div></div>
+</section>
+
+<form class="quick-compare card" action="{{ url_for('main.compare') }}" method="get">
+  <label for="qc">Quick compare</label>
+  <input id="qc" name="tickers" placeholder="e.g. D05.SI, O39.SI, U11.SI" required>
+  <button class="btn primary">Compare</button>
+</form>
+
+<div class="grid-2">
+  <section class="card">
+    <h2>Follow-ups (next 14 days)</h2>
+    {% if follow_ups %}
+    <ul class="list">
+      {% for s in follow_ups %}
+      <li>
+        <span class="date {{ 'overdue' if s.follow_up_on < today }}">{{ s.follow_up_on.strftime('%d %b') }}</span>
+        <a href="{{ url_for('main.client_detail', client_id=s.client_id) }}">{{ s.client.name }}</a>
+        <span class="ticker">{{ s.ticker }}</span>
+        {% if s.follow_up_on < today %}<span class="pill red">Overdue</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}<p class="muted">No follow-ups scheduled. Add a follow-up date when you record a discussion.</p>{% endif %}
+  </section>
+
+  <section class="card">
+    <h2>Recent discussions</h2>
+    {% if recent %}
+    <ul class="list">
+      {% for s in recent %}
+      <li>
+        <span class="date">{{ s.discussed_on.strftime('%d %b') }}</span>
+        <a href="{{ url_for('main.client_detail', client_id=s.client_id) }}">{{ s.client.name }}</a>
+        <span class="ticker">{{ s.ticker }}</span>
+        <span class="pill {{ s.interest_level|lower }}">{{ s.interest_level }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="muted">Nothing saved yet. <a href="{{ url_for('main.snapshot_new') }}">Record your first client discussion</a>.</p>
+    {% endif %}
+  </section>
+</div>
+
+{% if top_tickers %}
+<section class="card">
+  <h2>Most discussed companies</h2>
+  <div class="chips">
+    {% for t, n in top_tickers %}
+      <a class="chip" href="{{ url_for('main.snapshots', ticker=t) }}">{{ t }} <b>{{ n }}</b></a>
+    {% endfor %}
+    {% if top_tickers|length >= 2 %}
+      <a class="chip accent" href="{{ url_for('main.compare', tickers=top_tickers|map('first')|join(',')) }}">Compare these →</a>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}

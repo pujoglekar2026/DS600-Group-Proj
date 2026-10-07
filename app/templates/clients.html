@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Clients{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Clients</h1><p class="muted">Your client book and how recently you spoke to each client.</p></div>
+  <div class="actions"><a class="btn primary" href="{{ url_for('main.client_new') }}">+ Add client</a></div>
+</div>
+
+{% if rows %}
+<div class="card table-wrap">
+  <table class="table">
+    <thead><tr><th>Code</th><th>Name</th><th>Segment</th><th>Risk profile</th><th class="num">Discussions</th><th>Last spoke</th></tr></thead>
+    <tbody>
+    {% for c, n, last in rows %}
+      <tr class="clickable" onclick="location.href='{{ url_for('main.client_detail', client_id=c.id) }}'">
+        <td class="mono">{{ c.client_code }}</td>
+        <td><a href="{{ url_for('main.client_detail', client_id=c.id) }}">{{ c.name }}</a></td>
+        <td>{{ c.segment or '—' }}</td>
+        <td>{{ c.risk_profile or '—' }}</td>
+        <td class="num">{{ n }}</td>
+        <td>{{ last.strftime('%d %b %Y') if last else '—' }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="empty card">
+  <p>No clients yet.</p>
+  <a class="btn primary" href="{{ url_for('main.client_new') }}">Add your first client</a>
+</div>
+{% endif %}
+{% endblock %}

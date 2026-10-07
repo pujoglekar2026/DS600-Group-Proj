@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}{{ client.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <p class="crumb"><a href="{{ url_for('main.clients') }}">Clients</a> /</p>
+    <h1>{{ client.name }}</h1>
+    <p class="muted"><span class="mono">{{ client.client_code }}</span>
+      {% if client.segment %} · {{ client.segment }}{% endif %}
+      {% if client.risk_profile %} · {{ client.risk_profile }} risk profile{% endif %}</p>
+  </div>
+  <div class="actions">
+    {% set tickers = client.snapshots | map(attribute='ticker') | unique | list %}
+    {% if tickers|length >= 2 %}
+      <a class="btn" href="{{ url_for('main.compare', tickers=tickers[:5]|join(',')) }}">Compare discussed stocks</a>
+    {% endif %}
+    <a class="btn primary" href="{{ url_for('main.snapshot_new', client_id=client.id) }}">+ Record discussion</a>
+  </div>
+</div>
+
+{% if client.snapshots %}
+<section class="card">
+  <h2>Discussion history</h2>
+  <p class="muted small">"Since discussion" compares the latest market price with the price when you spoke to the client — a quick talking point for the follow-up.</p>
+  <ol class="timeline">
+  {% for s in client.snapshots %}
+    {% set now = prices.get(s.ticker) %}
+    <li>
+      <div class="tl-date">{{ s.discussed_on.strftime('%d %b %Y') }}</div>
+      <div class="tl-body">
+        <div class="tl-head">
+          <span class="ticker">{{ s.ticker }}</span>
+          <span class="company">{{ s.company_name }}</span>
+          <span class="pill {{ s.interest_level|lower }}">{{ s.interest_level }} interest</span>
+        </div>
+        <div class="tl-prices">
+          <span>Price then <b class="mono">{{ s.currency }} {{ s.price_at_discussion|money }}</b></span>
+          {% if now %}
+            <span>Now <b class="mono">{{ s.currency }} {{ now|money }}</b></span>
+            {% set chg = (now / (s.price_at_discussion|float) - 1) %}
+            <span class="chg {{ 'up' if chg >= 0 else 'down' }}">{{ chg|pct(signed=True) }} since discussion</span>
+          {% endif %}
+        </div>
+        {% if s.notes %}<p class="notes">{{ s.notes }}</p>{% endif %}
+        <div class="tl-foot">
+          {% for t in s.tag_list %}<span class="tag">{{ t }}</span>{% endfor %}
+          {% if s.follow_up_on %}<span class="follow {{ 'overdue' if s.follow_up_on < today }}">Follow up {{ s.follow_up_on.strftime('%d %b %Y') }}</span>{% endif %}
+          <span class="spacer"></span>
+          <a href="{{ url_for('main.snapshot_edit', snapshot_id=s.id) }}">Edit</a>
+          <form method="post" action="{{ url_for('main.snapshot_delete', snapshot_id=s.id) }}" onsubmit="return confirm('Delete this discussion?')">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <button class="link danger">Delete</button>
+          </form>
+        </div>
+      </div>
+    </li>
+  {% endfor %}
+  </ol>
+</section>
+{% else %}
+<div class="empty card">
+  <p>No discussions recorded with {{ client.name }} yet.</p>
+  <a class="btn primary" href="{{ url_for('main.snapshot_new', client_id=client.id) }}">Record a discussion</a>
+</div>
+{% endif %}
+
+<form method="post" action="{{ url_for('main.client_delete', client_id=client.id) }}" class="danger-zone"
+      onsubmit="return confirm('Delete {{ client.name }} and all their discussion records? This cannot be undone.')">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <button class="link danger">Delete this client</button>
+</form>
+{% endblock %}

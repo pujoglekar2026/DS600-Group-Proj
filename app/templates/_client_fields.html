@@ -1,0 +1,21 @@
+{% set p = prefix | default('') %}
+<div class="form-row">
+  <label>Client code <span class="hint">e.g. C-1001</span>
+    <input name="{{ p }}client_code" maxlength="32" value="{{ request.form.get(p ~ 'client_code', '') }}"></label>
+  <label>Client name
+    <input name="{{ p }}client_name" maxlength="120" value="{{ request.form.get(p ~ 'client_name', '') }}"></label>
+</div>
+<div class="form-row">
+  <label>Segment
+    <select name="{{ p }}segment">
+      <option value="">—</option>
+      {% for s in ['Private Banking', 'Priority Banking', 'Corporate', 'Institutional', 'Retail'] %}
+      <option {{ 'selected' if request.form.get(p ~ 'segment') == s }}>{{ s }}</option>{% endfor %}
+    </select></label>
+  <label>Risk profile
+    <select name="{{ p }}risk_profile">
+      <option value="">—</option>
+      {% for s in ['Conservative', 'Balanced', 'Growth', 'Aggressive'] %}
+      <option {{ 'selected' if request.form.get(p ~ 'risk_profile') == s }}>{{ s }}</option>{% endfor %}
+    </select></label>
+</div>

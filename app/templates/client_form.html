@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Add client{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Add client</h1></div></div>
+<form method="post" class="card form narrow">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  {% include "_client_fields.html" %}
+  <div class="form-actions">
+    <a class="btn" href="{{ url_for('main.clients') }}">Cancel</a>
+    <button class="btn primary">Save client</button>
+  </div>
+</form>
+{% endblock %}

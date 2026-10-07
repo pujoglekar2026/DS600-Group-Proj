@@ -1,0 +1,15 @@
+[Unit]
+Description=Nimbus RM (Gunicorn)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=nimbus
+Group=nimbus
+WorkingDirectory=/opt/nimbus
+ExecStart=/opt/nimbus/.venv/bin/gunicorn --workers 3 --bind 127.0.0.1:8000 --timeout 60 --access-logfile - wsgi:app
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
