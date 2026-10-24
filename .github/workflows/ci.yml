@@ -21,4 +21,4 @@ jobs:
       - name: Lint CloudFormation template
         run: |
           pip install cfn-lint
-          cfn-lint --ignore-checks W1011 -- infra/nimbus-stack.yaml
+          cfn-lint --ignore-checks W1011 -- infra/nimbus-merged-stack.yaml

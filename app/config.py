@@ -40,6 +40,7 @@ class Config:
     MARKET_DATA_PROVIDER = os.getenv("MARKET_DATA_PROVIDER", "yahoo").lower()
     DEMO_FALLBACK = _bool("DEMO_FALLBACK", True)
     CACHE_TTL = int(os.getenv("CACHE_TTL", "900"))
+    SNAPSHOT_ARCHIVE_BUCKET = os.getenv("SNAPSHOT_ARCHIVE_BUCKET", "")
 
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SECURE = _bool("SESSION_COOKIE_SECURE", False)

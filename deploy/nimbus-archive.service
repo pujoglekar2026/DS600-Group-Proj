@@ -1,0 +1,11 @@
+[Unit]
+Description=Archive old Nimbus discussion snapshots to S3
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=nimbus
+Group=nimbus
+WorkingDirectory=/opt/nimbus
+ExecStart=/opt/nimbus/.venv/bin/flask --app wsgi archive-snapshots --years 5

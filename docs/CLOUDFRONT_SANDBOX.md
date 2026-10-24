@@ -31,7 +31,7 @@ CloudFront is the public entry point and EC2 is its origin.
    Enter each value in its matching parameter. The 40-character database
    password stays within RDS's 41-character maximum and uses allowed characters.
 3. In CloudFormation, create a stack using
-   `infra/nimbus-cloudfront-sandbox.yaml`.
+   `infra/nimbus-merged-stack.yaml`.
 4. Provide the public repository URL, branch, generated secrets, and an allowed
    instance size. Keep the `t3.micro` defaults unless the lab requires otherwise.
    Set `SSHAllowedCidr` to your own public IP with `/32` if SSH is needed;
@@ -65,8 +65,10 @@ CloudFront is the public entry point and EC2 is its origin.
 | CloudFront `PriceClass_100` | Reduces distribution cost by using the lower-cost edge locations. Requests from Asia can have higher latency than with `PriceClass_All`. |
 
 The app is server-rendered Flask, so S3 static-site hosting alone cannot serve
-its authenticated pages or API. An S3 bucket would add deployment and asset
-synchronization work without removing the need for the EC2 application server.
+its authenticated pages or API. A static-site bucket would add deployment and
+asset synchronization work without removing the need for the EC2 application
+server. The stack does create a separate private S3 bucket solely for old
+discussion-snapshot archives.
 A load balancer and Auto Scaling group are also omitted: there is one small
 origin in this temporary lab, and adding another compute tier would increase
 cost and setup complexity without providing meaningful availability.
@@ -79,8 +81,29 @@ cost and setup complexity without providing meaningful availability.
   or Multi-AZ database.
 - **Session cleanup and data loss:** The sandbox resets resources when its timer
   expires. RDS uses `DeletionPolicy: Delete`, so deleting the stack also deletes
-  the database. Export any required project data before ending the lab; this is
-  not a durable production hosting arrangement.
+  the database. The snapshot archive bucket is retained when the stack is
+  deleted; remove its contents and bucket manually when they are no longer
+  needed. Export any required project data before ending the lab; this is not a
+  durable production hosting arrangement.
+- **Snapshot archive:** A monthly EC2 systemd timer moves snapshots whose
+  `discussed_on` date is more than five calendar years old from RDS to private,
+  SSE-S3-encrypted S3 objects. The job verifies each object before deleting the
+  database row. S3 transitions the archive objects to Glacier Flexible
+  Retrieval after 30 days. Archived snapshots are not available in the app;
+  retrieval requires restoring the object from Glacier. The archive contains
+  client names and discussion notes, so protect access to the bucket. To run
+  the archive immediately, use Session Manager and run
+  `sudo -u nimbus /opt/nimbus/.venv/bin/flask --app wsgi archive-snapshots`.
+  The lifecycle rule does not expire archive objects, so they remain in Glacier
+  and continue to incur storage charges until manually deleted.
+  This is based on discussion date, not last access, and five years is a
+  project default rather than a compliance recommendation. Archiving reduces
+  live database rows and future growth; it does not shrink the provisioned
+  20-GiB RDS storage allocation or immediately reduce its storage charge.
+- **Archive IAM permissions:** IAM is read-only in the lab, so the stack cannot
+  create a scoped policy. The archiver uses the existing `LabInstanceProfile`.
+  Confirm that it permits `s3:PutObject` and `s3:GetObject` for the archive
+  bucket; otherwise the job will fail without deleting the RDS row.
 - **Origin networking:** EC2 must accept port 80 because CloudFront connects to
   it over HTTP. Nginx validates the CloudFront-only secret header, but the EC2
   origin still has a public address and the header can be read by principals
@@ -94,9 +117,10 @@ cost and setup complexity without providing meaningful availability.
 - **CloudFront deployment delay:** Distribution creation and changes can take
   several minutes. A newly created stack can be complete before CloudFront is
   globally deployed; wait for the distribution status before testing.
-- **Origin address changes:** The distribution uses the EC2 public DNS name.
-  If the instance is replaced or its public address changes, update/recreate the
-  stack so CloudFront points at the new origin.
+- **Origin address changes:** The merged stack uses an Elastic IP, while the
+  sandbox template uses the EC2 public DNS name. If the instance is replaced or
+  its public address changes, update/recreate the stack so CloudFront points at
+  the new origin.
 - **Market data:** Yahoo Finance may rate-limit or block cloud-hosted requests.
   The app labels its demo-data fallback; these figures are illustrative, not
   investment advice.
@@ -107,4 +131,5 @@ cost and setup complexity without providing meaningful availability.
 
 To clean up, delete the CloudFormation stack when finished and wait until the
 stack deletion completes. This removes the CloudFront distribution and its
-origin resources.
+origin resources but retains the non-empty snapshot archive bucket; delete that
+bucket separately only after confirming its contents are no longer needed.

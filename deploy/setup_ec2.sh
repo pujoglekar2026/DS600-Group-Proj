@@ -44,12 +44,15 @@ done
 
 echo "==> Installing systemd service"
 cp "$APP_DIR/deploy/nimbus.service" /etc/systemd/system/nimbus.service
+cp "$APP_DIR/deploy/nimbus-archive.service" /etc/systemd/system/nimbus-archive.service
+cp "$APP_DIR/deploy/nimbus-archive.timer" /etc/systemd/system/nimbus-archive.timer
 systemctl daemon-reload
 systemctl enable nimbus
 systemctl restart nimbus
+systemctl enable --now nimbus-archive.timer
 
 echo "==> Configuring Nginx"
-cp "$APP_DIR/deploy/nginx.conf" /etc/nginx/nginx.conf
+cp "$APP_DIR/deploy/nginx-cloudfront.conf" /etc/nginx/nginx.conf
 nginx -t
 systemctl enable nginx
 systemctl restart nginx

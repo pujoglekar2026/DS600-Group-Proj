@@ -56,9 +56,10 @@ flowchart LR
 | **Amazon VPC** | One public subnet hosts the app; two private subnets in separate Availability Zones are used for the RDS subnet group. Only the public subnet routes through the Internet Gateway; the database has no public route. |
 | **Amazon EC2** | A small Amazon Linux 2023 instance runs Nginx and Gunicorn/Flask as a `systemd` service. It needs outbound internet access for installation and Yahoo Finance; a NAT gateway is avoided to reduce sandbox cost. |
 | **Amazon RDS** | Single-AZ MySQL database in the private subnets holds users, clients and discussion snapshots. The database endpoint is not public and its security group accepts MySQL only from the EC2 security group. |
-| **IAM** | The EC2 instance uses the sandbox's existing `LabInstanceProfile` for Systems Manager Session Manager. The sandbox does not allow creating IAM roles. |
+| **Amazon S3** | A private, encrypted archive bucket stores snapshots with a `discussed_on` date older than five years; objects transition to Glacier Flexible Retrieval after 30 days. |
+| **IAM** | The EC2 instance uses the sandbox's existing `LabInstanceProfile` for Systems Manager and, if permitted by its existing policies, S3 archive access. The sandbox does not allow creating IAM roles or policies. |
 
-The sandbox deployment is defined in [`infra/nimbus-cloudfront-sandbox.yaml`](infra/nimbus-cloudfront-sandbox.yaml). Its architecture, setup steps, resource rationales and limitations are documented in the [CloudFront sandbox guide](docs/CLOUDFRONT_SANDBOX.md). The original [`infra/nimbus-stack.yaml`](infra/nimbus-stack.yaml) is a separate general-purpose template and is not compatible with all sandbox restrictions.
+The deployment is defined in [`infra/nimbus-merged-stack.yaml`](infra/nimbus-merged-stack.yaml). Its architecture, setup steps, resource rationales and limitations are documented in the [CloudFront sandbox guide](docs/CLOUDFRONT_SANDBOX.md). Old discussion snapshots are archived monthly to a private S3 bucket and transitioned to Glacier Flexible Retrieval.
 
 ---
 
@@ -75,21 +76,21 @@ nimbus-rm/
 │   ├── api.py             # JSON API used by the comparison page
 │   ├── routes.py          # HTML pages: dashboard, clients, discussions
 │   ├── auth.py            # Login, registration, logout
-│   ├── cli.py             # flask init-db / create-user / seed-demo
+│   ├── cli.py             # flask init-db / create-user / seed-demo / archive-snapshots
+│   ├── archive.py         # Verified export of old snapshots to S3
 │   ├── templates/         # Jinja2 HTML templates
 │   └── static/            # CSS and the comparison page's JavaScript (Chart.js)
 ├── infra/
-│   ├── nimbus-cloudfront-sandbox.yaml # Sandbox CloudFormation stack, including CloudFront
-│   └── nimbus-stack.yaml             # General-purpose CloudFormation stack
+│   └── nimbus-merged-stack.yaml # CloudFront sandbox stack with S3 snapshot archive
 ├── deploy/
 │   ├── nginx-cloudfront.conf # Origin-token guard for the sandbox CloudFront deployment
 │   ├── setup_ec2.sh       # Installs and starts the app on EC2
 │   ├── update.sh          # Pulls new code from GitHub and restarts
 │   ├── nimbus.service     # systemd unit for Gunicorn
-│   └── nginx.conf         # Nginx reverse-proxy config
+│   ├── nimbus-archive.service # systemd service for snapshot archiving
+│   └── nimbus-archive.timer # Monthly archive schedule
 ├── docs/
 │   ├── CLOUDFRONT_SANDBOX.md # Sandbox deployment steps, rationale, considerations
-│   ├── DEPLOYMENT.md      # General AWS deployment guide
 │   ├── schema.sql         # Database schema (for reference/report)
 │   └── screenshots/
 ├── tests/                 # pytest suite (runs offline)
@@ -138,11 +139,9 @@ python -m pytest -q                               # run the tests
 For the AWS Academy sandbox deployment with CloudFront, follow **[docs/CLOUDFRONT_SANDBOX.md](docs/CLOUDFRONT_SANDBOX.md)**. In short:
 
 1. Push this repository to GitHub (public, so EC2 can clone it).
-2. In **us-east-1**, create a CloudFormation stack from `infra/nimbus-cloudfront-sandbox.yaml` and enter the repository URL and generated secrets.
+2. In **us-east-1**, create a CloudFormation stack from `infra/nimbus-merged-stack.yaml` and enter the repository URL and generated secrets.
 3. Wait for CloudFront to report **Deployed**, then open the `ApplicationURL` stack output.
 4. Use Systems Manager Session Manager to seed the demo login on EC2.
-
-The original general-purpose deployment instructions remain in **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**.
 
 To ship a code change: push to GitHub, then on the server run `sudo bash /opt/nimbus/deploy/update.sh`.
 

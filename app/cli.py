@@ -4,6 +4,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 import click
+from flask import current_app
 
 from .market import DemoProvider
 from .models import Client, Snapshot, User, db
@@ -15,6 +16,22 @@ def register_cli(app):
         """Create all tables (safe to run more than once)."""
         db.create_all()
         click.echo("Database tables are ready.")
+
+    @app.cli.command("archive-snapshots")
+    @click.option("--years", type=click.IntRange(min=1), default=5, show_default=True)
+    def archive_old_snapshots(years):
+        """Move old discussion snapshots from RDS to the S3 Glacier archive."""
+        bucket = current_app.config["SNAPSHOT_ARCHIVE_BUCKET"]
+        if not bucket:
+            raise click.ClickException("SNAPSHOT_ARCHIVE_BUCKET is not configured.")
+
+        import boto3
+
+        from .archive import archive_snapshots
+
+        client = boto3.client("s3")
+        count = archive_snapshots(bucket, client, years=years)
+        click.echo(f"Archived and removed {count} discussion snapshot(s).")
 
     @app.cli.command("create-user")
     @click.argument("username")

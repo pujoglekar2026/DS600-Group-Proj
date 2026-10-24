@@ -1,27 +1,38 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >
-  Nimbus RM for the AWS Academy sandbox: CloudFront HTTPS distribution,
-  public EC2 Flask origin, and private single-AZ MySQL RDS database.
+  Nimbus RM for the AWS Academy Learner Lab: CloudFront HTTPS distribution,
+  public EC2 Flask origin with a stable Elastic IP, and private single-AZ
+  MySQL RDS database. The stack only completes once the app has bootstrapped.
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label: { default: "Application" }
+        Parameters: [RepositoryUrl, RepositoryBranch, AppSecretKey, OriginVerifyToken]
+      - Label: { default: "Database" }
+        Parameters: [DBUsername, DBPassword, DBInstanceClass]
+      - Label: { default: "Web server" }
+        Parameters: [InstanceType, KeyName, SSHAllowedCidr, LatestAmiId]
 
 Parameters:
-  LatestAmiId:
-    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
-    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
-    Description: Latest Amazon Linux 2023 x86_64 AMI.
   RepositoryUrl:
     Type: String
     Description: Public HTTPS URL of the Nimbus RM Git repository.
   RepositoryBranch:
     Type: String
     Default: main
-  InstanceType:
+  AppSecretKey:
     Type: String
-    Default: t3.micro
-    AllowedValues: [t2.nano, t2.micro, t2.small, t2.medium, t3.nano, t3.micro, t3.small, t3.medium]
-  DBInstanceClass:
+    NoEcho: true
+    MinLength: 32
+    Description: Random secret used to sign Flask sessions (python3 -c "import secrets; print(secrets.token_hex(32))").
+  OriginVerifyToken:
     Type: String
-    Default: db.t3.micro
-    AllowedValues: [db.t3.micro, db.t3.small, db.t3.medium]
+    NoEcho: true
+    MinLength: 32
+    MaxLength: 64
+    AllowedPattern: "[A-Fa-f0-9]+"
+    Description: Random hex value used to reject requests that bypass CloudFront (use a different value from AppSecretKey).
   DBUsername:
     Type: String
     Default: admin
@@ -33,24 +44,33 @@ Parameters:
     MaxLength: 41
     AllowedPattern: "[a-zA-Z0-9!#%^*_+=-]*"
     Description: RDS password; use letters, digits and !#%^*_+=- only.
-  AppSecretKey:
+  DBInstanceClass:
     Type: String
-    NoEcho: true
-    MinLength: 32
-    Description: Random secret used to sign Flask sessions.
-  OriginVerifyToken:
+    Default: db.t3.micro
+    AllowedValues: [db.t3.micro, db.t3.small, db.t3.medium]
+  InstanceType:
     Type: String
-    NoEcho: true
-    MinLength: 32
-    MaxLength: 64
-    AllowedPattern: "[A-Fa-f0-9]+"
-    Description: Random hex value used to reject requests that bypass CloudFront.
+    Default: t3.micro
+    AllowedValues: [t2.nano, t2.micro, t2.small, t2.medium, t3.nano, t3.micro, t3.small, t3.medium]
+  KeyName:
+    Type: String
+    Default: ""
+    Description: Optional EC2 key pair for SSH (Learner Lab - "vockey"). Leave empty to use Session Manager only.
   SSHAllowedCidr:
     Type: String
     Default: 127.0.0.1/32
-    Description: Set to your public IP/32 only if SSH access is needed; Session Manager is preferred.
+    Description: Set to your public IP/32 only if SSH is needed; the default effectively disables SSH.
+  LatestAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+    Description: Latest Amazon Linux 2023 x86_64 AMI.
+
+Conditions:
+  HasKey: !Not [!Equals [!Ref KeyName, ""]]
+  IsUsEast1: !Equals [!Ref "AWS::Region", us-east-1]
 
 Resources:
+  # ------------------------------------------------------------------ VPC
   VPC:
     Type: AWS::EC2::VPC
     Properties:
@@ -79,6 +99,7 @@ Resources:
       MapPublicIpOnLaunch: true
       Tags: [{ Key: Name, Value: nimbus-public }]
 
+  # RDS needs a subnet group that spans two AZs, hence two private subnets.
   PrivateSubnet1:
     Type: AWS::EC2::Subnet
     Properties:
@@ -99,6 +120,7 @@ Resources:
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId: !Ref VPC
+      Tags: [{ Key: Name, Value: nimbus-public-rt }]
 
   PublicDefaultRoute:
     Type: AWS::EC2::Route
@@ -114,10 +136,12 @@ Resources:
       SubnetId: !Ref PublicSubnet
       RouteTableId: !Ref PublicRouteTable
 
+  # No internet route: the database is reachable only from inside the VPC.
   PrivateRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId: !Ref VPC
+      Tags: [{ Key: Name, Value: nimbus-private-rt }]
 
   PrivateSubnet1RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
@@ -131,6 +155,7 @@ Resources:
       SubnetId: !Ref PrivateSubnet2
       RouteTableId: !Ref PrivateRouteTable
 
+  # ------------------------------------------------------- Security groups
   WebSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -159,8 +184,10 @@ Resources:
           FromPort: 3306
           ToPort: 3306
           SourceSecurityGroupId: !Ref WebSecurityGroup
+          Description: MySQL from web tier only
       Tags: [{ Key: Name, Value: nimbus-db-sg }]
 
+  # ------------------------------------------------------------------ RDS
   DBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
@@ -172,7 +199,7 @@ Resources:
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     Properties:
-      Engine: mysql
+      Engine: mysql  # no version pinned: RDS uses its current default MySQL version
       DBInstanceClass: !Ref DBInstanceClass
       AllocatedStorage: "20"
       StorageType: gp2
@@ -185,13 +212,41 @@ Resources:
       MultiAZ: false
       BackupRetentionPeriod: 1
       StorageEncrypted: true
+      Tags: [{ Key: Name, Value: nimbus-db }]
 
+  SnapshotArchiveBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: TransitionArchivedSnapshotsToGlacier
+            Status: Enabled
+            Prefix: snapshots/
+            Transitions:
+              - TransitionInDays: 30
+                StorageClass: GLACIER
+
+  # ------------------------------------------------------------------ EC2
   WebServer:
     Type: AWS::EC2::Instance
-    DependsOn: PublicDefaultRoute
+    DependsOn: PublicDefaultRoute  # the database is already waited for via its endpoint below
+    CreationPolicy:
+      ResourceSignal: { Timeout: PT25M }
     Properties:
       ImageId: !Ref LatestAmiId
       InstanceType: !Ref InstanceType
+      KeyName: !If [HasKey, !Ref KeyName, !Ref "AWS::NoValue"]
       SubnetId: !Ref PublicSubnet
       SecurityGroupIds: [!Ref WebSecurityGroup]
       IamInstanceProfile: LabInstanceProfile
@@ -208,10 +263,11 @@ Resources:
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
-          set -euo pipefail
+          set -euxo pipefail
           exec > /var/log/nimbus-bootstrap.log 2>&1
-
           dnf install -y git aws-cfn-bootstrap
+          # Tell CloudFormation straight away if any step fails, instead of waiting 25 minutes.
+          trap '/opt/aws/bin/cfn-signal -e 1 --stack ${AWS::StackName} --resource WebServer --region ${AWS::Region} || true' ERR
           git clone --branch "${RepositoryBranch}" "${RepositoryUrl}" /opt/nimbus
 
           cat > /opt/nimbus/.env <<'ENVEOF'
@@ -221,16 +277,40 @@ Resources:
           DB_NAME=nimbus
           DB_USER=${DBUsername}
           DB_PASSWORD=${DBPassword}
+          SNAPSHOT_ARCHIVE_BUCKET=${SnapshotArchiveBucket}
+          AWS_DEFAULT_REGION=${AWS::Region}
           MARKET_DATA_PROVIDER=yahoo
           DEMO_FALLBACK=true
           CACHE_TTL=900
           SESSION_COOKIE_SECURE=true
           ENVEOF
           sed -i 's/^[ \t]*//' /opt/nimbus/.env
-          sed -i "s/__ORIGIN_VERIFY_TOKEN__/${OriginVerifyToken}/g" /opt/nimbus/deploy/nginx-cloudfront.conf
-          cp /opt/nimbus/deploy/nginx-cloudfront.conf /opt/nimbus/deploy/nginx.conf
-          bash /opt/nimbus/deploy/setup_ec2.sh
 
+          # Keep the token out of the xtrace log.
+          set +x
+          sed -i "s/__ORIGIN_VERIFY_TOKEN__/${OriginVerifyToken}/g" /opt/nimbus/deploy/nginx-cloudfront.conf
+          set -x
+
+          bash /opt/nimbus/deploy/setup_ec2.sh
+          /opt/aws/bin/cfn-signal -e 0 --stack ${AWS::StackName} --resource WebServer --region ${AWS::Region} || true
+
+  # Stable address so the CloudFront origin survives Learner Lab stop/start.
+  # It is associated only after the instance has signalled success, so the
+  # bootstrap (git clone, dnf) runs on the instance's launch-time public IP.
+  ElasticIP:
+    Type: AWS::EC2::EIP
+    DependsOn: GatewayAttachment
+    Properties:
+      Domain: vpc
+      Tags: [{ Key: Name, Value: nimbus-eip }]
+
+  ElasticIPAssociation:
+    Type: AWS::EC2::EIPAssociation
+    Properties:
+      InstanceId: !Ref WebServer
+      AllocationId: !GetAtt ElasticIP.AllocationId
+
+  # ----------------------------------------------------------- CloudFront
   CloudFrontOriginRequestPolicy:
     Type: AWS::CloudFront::OriginRequestPolicy
     Properties:
@@ -248,6 +328,7 @@ Resources:
 
   CloudFrontDistribution:
     Type: AWS::CloudFront::Distribution
+    DependsOn: ElasticIPAssociation  # create only after the app is up and the EIP is attached
     Properties:
       DistributionConfig:
         Enabled: true
@@ -257,7 +338,15 @@ Resources:
         IPV6Enabled: true
         Origins:
           - Id: NimbusEC2Origin
-            DomainName: !GetAtt WebServer.PublicDnsName
+            # CloudFront needs a DNS name, not an IP. Build the EIP's public DNS name.
+            DomainName: !If
+              - IsUsEast1
+              - !Sub
+                - ec2-${Dashed}.compute-1.amazonaws.com
+                - Dashed: !Join ["-", !Split [".", !Ref ElasticIP]]
+              - !Sub
+                - ec2-${Dashed}.${AWS::Region}.compute.amazonaws.com
+                - Dashed: !Join ["-", !Split [".", !Ref ElasticIP]]
             OriginCustomHeaders:
               - HeaderName: X-Origin-Verify
                 HeaderValue: !Ref OriginVerifyToken
@@ -271,7 +360,7 @@ Resources:
           ViewerProtocolPolicy: redirect-to-https
           AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
           CachedMethods: [GET, HEAD]
-          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad  # Managed-CachingDisabled
           OriginRequestPolicyId: !Ref CloudFrontOriginRequestPolicy
           Compress: true
         ViewerCertificate:
@@ -286,11 +375,17 @@ Outputs:
     Value: !Sub "https://${CloudFrontDistribution.DomainName}"
   CloudFrontDistributionId:
     Value: !Ref CloudFrontDistribution
-  EC2OriginDNS:
-    Description: Direct origin address; requests without the CloudFront token are rejected.
-    Value: !GetAtt WebServer.PublicDnsName
+  WebServerPublicIP:
+    Description: Elastic IP of the web server (stable across stop/start).
+    Value: !Ref ElasticIP
+  SSHCommand:
+    Condition: HasKey
+    Value: !Sub ssh -i labsuser.pem ec2-user@${ElasticIP}
   DatabaseEndpoint:
     Description: Private RDS endpoint, reachable from the web server only.
     Value: !GetAtt Database.Endpoint.Address
+  SnapshotArchiveBucketName:
+    Description: Private S3 bucket; archived snapshots transition to Glacier after 30 days.
+    Value: !Ref SnapshotArchiveBucket
   VpcId:
     Value: !Ref VPC
