@@ -26,6 +26,7 @@ def test_health(client):
 def test_compare_api(logged_in):
     d = logged_in.get("/api/compare?tickers=JPM,BAC&period=6mo").get_json()
     assert [c["ticker"] for c in d["companies"]] == ["JPM", "BAC"]
+    assert [c["name"] for c in d["companies"]] == ["JPMorgan Chase & Co.", "Bank of America Corporation"]
     assert d["suggested_template"] == "banking"
     assert d["companies"][0]["rebased"][0][1] == 100.0
     assert len(d["correlation"]["matrix"]) == 2

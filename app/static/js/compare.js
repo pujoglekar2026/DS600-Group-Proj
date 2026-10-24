@@ -21,6 +21,7 @@
     price: (v) => v == null ? '—' : v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
   };
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const companyLabel = (c) => c.name || c.ticker;
 
   function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
 
@@ -66,7 +67,7 @@
     const datasets = companies.map((c, i) => {
       const m = new Map(c[key]);
       return {
-        label: c.ticker, data: dates.map((d) => m.get(d) ?? null), spanGaps: true,
+        label: companyLabel(c), data: dates.map((d) => m.get(d) ?? null), spanGaps: true,
         borderColor: COLORS[i], backgroundColor: COLORS[i], borderWidth: 2, pointRadius: 0, tension: 0.1,
       };
     });
@@ -90,7 +91,7 @@
       const s = c.stats;
       const tr = s.total_return;
       return `<tr>
-        <td><span class="dot" style="background:${COLORS[i]}"></span><b>${esc(c.ticker)}</b><div class="muted small">${esc(c.name)}</div></td>
+        <td><span class="dot" style="background:${COLORS[i]}"></span><b>${esc(companyLabel(c))}</b><div class="muted small">${esc(c.ticker)}</div></td>
         <td>${esc(c.sector)}</td>
         <td class="num mono">${esc(c.currency)} ${fmt.price(c.last_price)}</td>
         <td class="num"><span class="chg ${tr >= 0 ? 'up' : 'down'}">${fmt.pct(tr, true)}</span></td>
@@ -108,8 +109,10 @@
   // ---------- 3. correlation ----------
   function renderCorrelation() {
     const { tickers, matrix } = state.data.correlation;
-    const head = `<thead><tr><th></th>${tickers.map((t) => `<th class="num">${esc(t)}</th>`).join('')}</tr></thead>`;
-    const body = tickers.map((t, i) => `<tr><th>${esc(t)}</th>${matrix[i].map((v, j) => {
+    const companies = new Map(state.data.companies.map((c) => [c.ticker, c]));
+    const label = (ticker) => companyLabel(companies.get(ticker) || { ticker });
+    const head = `<thead><tr><th></th>${tickers.map((t) => `<th class="num">${esc(label(t))}</th>`).join('')}</tr></thead>`;
+    const body = tickers.map((t, i) => `<tr><th>${esc(label(t))}</th>${matrix[i].map((v, j) => {
       if (v == null) return '<td class="num">—</td>';
       const alpha = i === j ? 0.08 : Math.min(Math.abs(v), 1) * 0.55;
       const rgb = v >= 0 ? '31,111,235' : '232,89,12';
@@ -140,7 +143,7 @@
   function renderValuation(d) {
     const metrics = d.template.metrics.filter((m) => m.source === 'snapshot');
     if (!metrics.length) return;
-    const head = `<thead><tr><th>Current valuation</th>${d.companies.map((c) => `<th class="num">${esc(c.ticker)}</th>`).join('')}</tr></thead>`;
+    const head = `<thead><tr><th>Current valuation</th>${d.companies.map((c) => `<th class="num">${esc(companyLabel(c))}</th>`).join('')}</tr></thead>`;
     const body = metrics.map((m) => `<tr><td title="${esc(m.help)}">${esc(m.label)} <span class="help">?</span></td>${
       d.companies.map((c) => `<td class="num">${fmt[m.format](c.snapshot[m.key])}</td>`).join('')}</tr>`).join('');
     $('valuation-table').innerHTML = head + `<tbody>${body}</tbody>`;
@@ -153,7 +156,7 @@
     metrics.forEach((m) => {
       const datasets = d.companies.map((c, i) => {
         const byYear = new Map(c.trend.map((r) => [r.year, r[m.key]]));
-        return { label: c.ticker, data: years.map((y) => byYear.get(y) ?? null), borderColor: COLORS[i], backgroundColor: COLORS[i],
+        return { label: companyLabel(c), data: years.map((y) => byYear.get(y) ?? null), borderColor: COLORS[i], backgroundColor: COLORS[i],
                  borderWidth: 2, pointRadius: 3, spanGaps: true };
       });
       if (datasets.every((ds) => ds.data.every((v) => v == null))) return;
@@ -173,7 +176,7 @@
   function renderSaveButtons() {
     $('save-buttons').innerHTML = state.data.companies.map((c) => {
       const url = `${window.NIMBUS.newSnapshotUrl}?ticker=${encodeURIComponent(c.ticker)}&price=${c.last_price ?? ''}`;
-      return `<a class="chip accent" href="${url}">Save ${esc(c.ticker)} @ ${fmt.price(c.last_price)}</a>`;
+      return `<a class="chip accent" href="${url}">Save ${esc(companyLabel(c))} @ ${fmt.price(c.last_price)}</a>`;
     }).join('');
   }
 
