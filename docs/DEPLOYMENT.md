@@ -1,11 +1,24 @@
 # Deploying Nimbus RM to AWS
 
+> **AWS Academy sandbox with CloudFront:** Use
+> [`CLOUDFRONT_SANDBOX.md`](CLOUDFRONT_SANDBOX.md) and
+> [`../infra/nimbus-cloudfront-sandbox.yaml`](../infra/nimbus-cloudfront-sandbox.yaml).
+> The older CloudFormation and console procedures below describe the original
+> deployment and include resources/settings that may not be permitted in the
+> sandbox.
+
+This guide describes the original general-purpose AWS architecture. The
+CloudFormation template and manual setup below may use features the AWS
+Academy sandbox does not allow. For that sandbox, use the dedicated
+[CloudFront sandbox guide](CLOUDFRONT_SANDBOX.md) instead.
+
 This guide covers two ways to deploy:
 
 - **Option A — CloudFormation (recommended).** One template builds the VPC, subnets, security groups, RDS database and EC2 server, and installs the app. About 15 minutes, mostly waiting.
 - **Option B — By hand in the AWS console.** The same architecture, built click by click. Slower, but useful for understanding each service and for screenshots in your report.
 
-Both work in **AWS Academy Learner Lab** and in a normal AWS account. Learner Lab differences are marked 🎓.
+The procedures below are intended for a normal AWS account; they are retained
+as reference material for the original architecture.
 
 ---
 

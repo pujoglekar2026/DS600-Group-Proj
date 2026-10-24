@@ -34,7 +34,7 @@ Group 1 project, extending the Nimbus case study. A relationship manager (RM) ca
 
 ```mermaid
 flowchart LR
-    U[RM's browser] -->|HTTP :80| IGW[Internet Gateway]
+    U[RM's browser] -->|HTTPS| CF[CloudFront]
     subgraph VPC["Amazon VPC 10.0.0.0/16"]
         subgraph PUB["Public subnet 10.0.1.0/24"]
             EC2["EC2 · Amazon Linux 2023<br/>Nginx → Gunicorn → Flask"]
@@ -44,20 +44,21 @@ flowchart LR
         end
         EC2 -->|MySQL :3306<br/>allowed by DB security group| RDS
     end
-    IGW --> EC2
+    CF -->|HTTP :80 + origin token| EC2
+    EC2 -->|Internet egress| IGW[Internet Gateway]
     EC2 -->|HTTPS| YF[Yahoo Finance]
     IAM[IAM instance profile] -.-> EC2
 ```
 
 | AWS service | How Nimbus RM uses it |
 |---|---|
-| **Amazon VPC** | Isolated network with two public and two private subnets across two Availability Zones. The public route table points to an Internet Gateway; the private route table has no internet route, so the database cannot be reached from outside. |
-| **Amazon EC2** | `t3.micro` running Amazon Linux 2023. Nginx serves static files and forwards requests to Gunicorn, which runs the Flask app as a `systemd` service that restarts automatically. |
-| **Amazon RDS** | MySQL database in the private subnets (not publicly accessible, storage encrypted, daily backups) holding users, clients and discussion snapshots. |
-| **IAM** | The EC2 instance uses an instance profile (`LabInstanceProfile` in Learner Lab, or a least-privilege role the template creates with SSM + CloudWatch permissions). Team members should use their own IAM users rather than the root account. |
-| **Security groups** | `nimbus-web-sg` allows HTTP (80) from anywhere and SSH (22) from an admin IP. `nimbus-db-sg` allows MySQL (3306) **only** from `nimbus-web-sg` — not from any IP address. |
+| **Amazon CloudFront** | Public entry point with HTTPS from its default `cloudfront.net` certificate. Dynamic caching is disabled and session cookies/query parameters are forwarded. Nginx requires a secret origin header to deter direct-origin access. |
+| **Amazon VPC** | One public subnet hosts the app; two private subnets in separate Availability Zones are used for the RDS subnet group. Only the public subnet routes through the Internet Gateway; the database has no public route. |
+| **Amazon EC2** | A small Amazon Linux 2023 instance runs Nginx and Gunicorn/Flask as a `systemd` service. It needs outbound internet access for installation and Yahoo Finance; a NAT gateway is avoided to reduce sandbox cost. |
+| **Amazon RDS** | Single-AZ MySQL database in the private subnets holds users, clients and discussion snapshots. The database endpoint is not public and its security group accepts MySQL only from the EC2 security group. |
+| **IAM** | The EC2 instance uses the sandbox's existing `LabInstanceProfile` for Systems Manager Session Manager. The sandbox does not allow creating IAM roles. |
 
-All of this is defined as code in [`infra/nimbus-stack.yaml`](infra/nimbus-stack.yaml) (CloudFormation), and can also be built by hand in the console — see the [deployment guide](docs/DEPLOYMENT.md).
+The sandbox deployment is defined in [`infra/nimbus-cloudfront-sandbox.yaml`](infra/nimbus-cloudfront-sandbox.yaml). Its architecture, setup steps, resource rationales and limitations are documented in the [CloudFront sandbox guide](docs/CLOUDFRONT_SANDBOX.md). The original [`infra/nimbus-stack.yaml`](infra/nimbus-stack.yaml) is a separate general-purpose template and is not compatible with all sandbox restrictions.
 
 ---
 
@@ -77,14 +78,18 @@ nimbus-rm/
 │   ├── cli.py             # flask init-db / create-user / seed-demo
 │   ├── templates/         # Jinja2 HTML templates
 │   └── static/            # CSS and the comparison page's JavaScript (Chart.js)
-├── infra/nimbus-stack.yaml  # CloudFormation: VPC, subnets, SGs, RDS, IAM, EC2
+├── infra/
+│   ├── nimbus-cloudfront-sandbox.yaml # Sandbox CloudFormation stack, including CloudFront
+│   └── nimbus-stack.yaml             # General-purpose CloudFormation stack
 ├── deploy/
+│   ├── nginx-cloudfront.conf # Origin-token guard for the sandbox CloudFront deployment
 │   ├── setup_ec2.sh       # Installs and starts the app on EC2
 │   ├── update.sh          # Pulls new code from GitHub and restarts
 │   ├── nimbus.service     # systemd unit for Gunicorn
 │   └── nginx.conf         # Nginx reverse-proxy config
 ├── docs/
-│   ├── DEPLOYMENT.md      # Step-by-step AWS deployment guide
+│   ├── CLOUDFRONT_SANDBOX.md # Sandbox deployment steps, rationale, considerations
+│   ├── DEPLOYMENT.md      # General AWS deployment guide
 │   ├── schema.sql         # Database schema (for reference/report)
 │   └── screenshots/
 ├── tests/                 # pytest suite (runs offline)
@@ -130,12 +135,14 @@ python -m pytest -q                               # run the tests
 
 ## Deploy to AWS
 
-Full instructions, including the AWS Academy Learner Lab specifics, are in **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**. In short:
+For the AWS Academy sandbox deployment with CloudFront, follow **[docs/CLOUDFRONT_SANDBOX.md](docs/CLOUDFRONT_SANDBOX.md)**. In short:
 
 1. Push this repository to GitHub (public, so EC2 can clone it).
-2. In the AWS console, open **CloudFormation → Create stack**, upload `infra/nimbus-stack.yaml`, and fill in the GitHub URL, a database password and a secret key.
-3. Wait about 15 minutes, then open the `WebsiteURL` from the stack's **Outputs** tab.
-4. SSH in once to create logins: `cd /opt/nimbus && sudo -u nimbus .venv/bin/flask --app wsgi seed-demo`.
+2. In **us-east-1**, create a CloudFormation stack from `infra/nimbus-cloudfront-sandbox.yaml` and enter the repository URL and generated secrets.
+3. Wait for CloudFront to report **Deployed**, then open the `ApplicationURL` stack output.
+4. Use Systems Manager Session Manager to seed the demo login on EC2.
+
+The original general-purpose deployment instructions remain in **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**.
 
 To ship a code change: push to GitHub, then on the server run `sudo bash /opt/nimbus/deploy/update.sh`.
 

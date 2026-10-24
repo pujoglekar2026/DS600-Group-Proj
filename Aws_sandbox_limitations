@@ -1,0 +1,256 @@
+﻿AWS Academy Cloud Foundations – Sandbox
+
+Environment Overview
+This sandbox provides a controlled environment for ad hoc exploration of AWS services. It is intended for learning, testing, and validating cloud concepts in a temporary lab account.
+
+This environment is cleaned up at the end of each session. When the session timer reaches 0:00, the session ends, and any data, configurations, or AWS resources created in the account are deleted.
+
+Region Restriction
+All service access is limited to the us-east-1 Region. If a user attempts to load a service console page in another AWS Region, access errors will appear.
+
+Service Usage and Other Restrictions
+The following services are available for use, but each is subject to specific limitations and operational constraints. These restrictions are documented here and may be subject to change.
+
+VS Code IDE (Lab IDE)
+A browser-based VS Code environment is provided for running commands, editing files, and interacting with AWS services.
+
+Access the IDE using the LabIDEURL output. The URL includes authentication automatically.
+
+AWS CloudFormation
+Amazon CloudFront
+AWS CloudShell
+AWS CloudTrail
+Amazon CloudWatch
+Amazon EC2 Auto Scaling
+
+Supported instance types: t2.nano, t2.micro, t2.small, t3.nano, t3.micro, and t3.small.
+
+Refer to the EC2 service details below for the concurrently running instance limits.
+
+Recommendation: size resources to your actual needs to avoid exceeding the available budget.
+
+AWS Elastic Beanstalk
+To create an application:
+1. Choose Create Application.
+2. Enter an application name.
+3. Choose a platform.
+4. Choose Configure more options.
+5. In the Security panel, choose Edit.
+6. For Service role, choose LabRole.
+7. If the environment is in the us-east-1 Region, choose vockey for the EC2 key pair.
+8. For IAM instance profile, choose LabInstanceProfile.
+9. Choose Save, then Create app.
+
+Supported instance types: nano, micro, small, medium, and large. If a larger instance type is attempted, it will be terminated.
+
+Amazon Elastic Compute Cloud (Amazon EC2)
+Amazon Machine Images (AMIs): Amazon-provided Linux and Microsoft Windows AMIs are available.
+
+Instances: You may launch only the following instance types:
+- t2.nano
+- t2.micro
+- t2.small
+- t2.medium
+- t3.nano
+- t3.micro
+- t3.small
+- t3.medium
+
+Amazon Elastic Block Store (Amazon EBS): Volumes up to 35 GB are supported and must use General Purpose SSD (gp2).
+
+On-Demand Instances only.
+
+Maximum of 9 concurrently running EC2 instances, regardless of instance size. If more than 9 instances are launched, the excess instances are terminated, leaving 9 running.
+
+A role named LabRole and an instance profile named LabInstanceProfile are pre-created for you. You can attach the role (via the instance profile) to an EC2 instance when you want to access that instance through the browser using AWS Systems Manager Session Manager. The role also grants permissions to applications running on the instance to access many other AWS services.
+
+Elastic Load Balancing
+
+AWS Identity and Access Management (IAM)
+IAM access is read-only.
+
+A role named LabRole is pre-created for you. This role is intended for attaching to a resource in an AWS service. It grants many AWS services access to other AWS services and provides permissions similar to those available to a console user.
+
+You cannot create roles, except for service-linked roles.
+
+AWS Key Management Service (AWS KMS)
+You have list access only.
+
+AWS Lambda
+When creating a function, change the default role and use the existing LabRole.
+
+Amazon Relational Database Service (Amazon RDS)
+Supported database engines:
+- Amazon Aurora
+- MySQL
+- PostgreSQL
+- MariaDB
+
+Multi-AZ deployments are not supported. If prompted, choose Dev/Test or a Free tier template and do not create a standby instance.
+
+Supported instance types: nano, micro, small, and medium. (Tip: choose Burstable classes to find these.)
+
+Supported storage types: EBS volumes up to 100 GB using General Purpose SSD (gp2). PIOPS storage types are not supported.
+
+On-Demand DB instance classes only.
+
+Enhanced monitoring is not supported. You must clear the default selection in the Additional configuration / Monitoring panel.
+
+Amazon Route 53
+You cannot register a domain.
+
+Amazon Simple Notification Service (Amazon SNS)
+Amazon Simple Storage Service (Amazon S3)
+You cannot create a vault lock.
+
+AWS Systems Manager (SSM)
+A role named LabRole and an instance profile named LabInstanceProfile are pre-created for you. You can attach the role (via the instance profile) to an EC2 instance when you want to access the instance through the browser using AWS Systems Manager Session Manager.
+
+Tagging
+
+Accessing the AWS Management Console
+At the top of these instructions, choose Start Lab to launch your lab.
+
+A Start Lab panel opens and displays the lab status.
+
+Wait until you see the message “Lab status: ready,” then close the Start Lab panel by choosing the X.
+
+At the top of these instructions, choose AWS.
+
+This opens the AWS Management Console in a new browser tab. The system automatically logs you in.
+
+Tip: If a new browser tab does not open, a banner or icon usually appears at the top of the browser explaining that the browser is preventing pop-up windows. Choose the banner or icon, then choose Allow pop-ups.
+
+Arrange the AWS Management Console tab so it displays alongside these instructions. Ideally, both browser tabs remain open at the same time so you can follow the lab steps more easily.
+
+Using the VS Code IDE
+A browser-based VS Code IDE is provided within this lab environment. You can use it to run terminal commands, edit files, and interact with AWS services.
+
+Accessing the IDE
+After the lab starts, locate the LabIDEURL output value at the top of these instructions. Above the AWS button, choose Details, then Show.
+
+Open the LabIDEURL in a new browser tab. The URL includes authentication, so you are logged in automatically.
+
+You are now in the VS Code IDE environment.
+
+Using the Integrated Terminal
+The VS Code IDE includes a built-in terminal. To open it:
+
+From the menu, choose Terminal > New Terminal, or press Ctrl+` (backtick).
+
+The terminal is preconfigured with AWS credentials, so you can run AWS CLI commands directly.
+
+Running AWS CLI Commands
+After opening a terminal in the IDE, you can run AWS CLI commands. For example, to retrieve the account number and your user ID:
+
+aws sts get-caller-identity
+
+If you have EC2 instances running in the sandbox, this command provides information about them:
+
+aws ec2 describe-instances
+
+For details about how to use the AWS CLI, refer to the AWS CLI Command Reference documentation.
+
+Using the AWS SDK for Python
+Python 3 is available in the IDE terminal, with access to the AWS SDK for Python (Boto3). You can use this library to run AWS SDK for Python code. For example:
+
+$ python3
+>>> import boto3
+>>> ec2 = boto3.client('ec2', region_name='us-east-1')
+>>> ec2.describe_regions()
+>>> exit()
+$
+
+For details about how to use the AWS SDK for Python, refer to the Boto3 documentation page.
+
+Accessing EC2 Instances
+When launching EC2 instances in the sandbox environment, choose the existing key pair named vockey at the time of launch.
+
+Then:
+1. Above these instructions, choose the Details dropdown menu.
+2. Choose Show.
+3. A Credentials window opens.
+
+If you use a Microsoft Windows computer and want to connect to a Linux instance, or connect to a Microsoft Windows instance by using Secure Shell (SSH), choose Download PPK and save the labsuser.ppk file.
+
+If you want to connect to a Windows instance desktop from any computer, choose Download PEM and save the labsuser.pem file.
+
+If you use macOS and want to connect to a Linux instance by using SSH, choose Download PEM and save the labsuser.pem file.
+
+Typically, your browser saves the labsuser.pem or labsuser.ppk file in your Downloads directory.
+
+Exit the Credentials window.
+
+To connect to a Linux instance by using SSH, see the next section.
+
+Using SSH to Access EC2 Instances You Launch
+The following steps explain how to use the SSH key to connect to your instance.
+
+Microsoft Windows Users
+These instructions are for Windows users only.
+
+If you use macOS or Linux, skip to the next section.
+
+Download the required software.
+
+You will use PuTTY to connect to EC2 instances by SSH. If PuTTY is not installed on your computer, download it here.
+
+Open putty.exe.
+
+Configure PuTTY to avoid timeouts:
+- Choose Connection.
+- Set Seconds between keepalives to 30.
+
+This setting keeps the PuTTY session open for longer periods of time.
+
+Configure your PuTTY session:
+- Choose Session.
+- Host Name (or IP address): Copy and paste the IPv4 Public IP address for the instance. To find it, return to the Amazon EC2 console and choose Instances. Select the instance and, in the Description tab, copy the IPv4 Public IP value.
+- Back in PuTTY, expand Connection > SSH.
+- Choose Auth and then expand Credentials.
+- Under Private key file for authentication, choose Browse.
+- Browse to the labsuser.ppk file you downloaded, select it, and choose Open.
+- Choose Open again.
+- To trust the host and connect, choose Accept.
+- When prompted to log in as, enter: ec2-user
+
+This step connects you to the EC2 instance.
+
+Microsoft Windows users: Click here to skip ahead to the next task.
+
+macOS and Linux Users – Using SSH to Connect
+These instructions apply only to macOS or Linux users.
+
+Read through the three bullet points in this step before beginning. You will not be able to see these instructions when the Details panel is open.
+
+Above these instructions, choose the Details dropdown menu, then choose Show.
+
+A Credentials window opens.
+
+Choose Download PEM and save the labsuser.pem file. Typically, your browser saves it to the Downloads directory.
+
+Then exit the Details panel by choosing the X.
+
+Open a terminal window and change to the directory where the .pem file was downloaded.
+
+For example, if it was saved to your Downloads directory, run:
+
+cd ~/Downloads
+
+Change the permissions on the key so it is readable only by the owner:
+
+chmod 400 <filename>.pem
+
+Return to the AWS Management Console and, in the EC2 service, choose Instances.
+
+Check the box next to the instance you want to connect to.
+
+In the Description tab, copy the IPv4 Public IP value.
+
+Return to the terminal window and run the following command (replace <public-ip-address> with the actual IP address you copied):
+
+ssh -i <filename>.pem ec2-user@<public-ip-address>
+
+When prompted to allow a first connection to this remote SSH server, enter yes.
+
+Because you are using a key pair for authentication, you will not be prompted for a password.

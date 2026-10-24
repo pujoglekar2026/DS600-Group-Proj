@@ -42,6 +42,7 @@ class Config:
     CACHE_TTL = int(os.getenv("CACHE_TTL", "900"))
 
     SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SECURE = _bool("SESSION_COOKIE_SECURE", False)
     SESSION_COOKIE_SAMESITE = "Lax"
     MAX_COMPARE_TICKERS = 5
 
