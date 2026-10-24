@@ -59,14 +59,14 @@ flowchart LR
 | **Amazon S3** | A private, encrypted archive bucket stores snapshots with a `discussed_on` date older than five years; objects transition to Glacier Flexible Retrieval after 30 days. |
 | **IAM** | The EC2 instance uses the sandbox's existing `LabInstanceProfile` for Systems Manager and, if permitted by its existing policies, S3 archive access. The sandbox does not allow creating IAM roles or policies. |
 
-The deployment is defined in [`infra/nimbus-merged-stack.yaml`](infra/nimbus-merged-stack.yaml). Its architecture, setup steps, resource rationales and limitations are documented in the [CloudFront sandbox guide](docs/CLOUDFRONT_SANDBOX.md). Old discussion snapshots are archived monthly to a private S3 bucket and transitioned to Glacier Flexible Retrieval.
+The deployment is defined in [`infra/nimbus-merged-stack.yaml`](infra/nimbus-merged-stack.yaml). Its architecture, setup steps, resource rationales and limitations are documented in the [CloudFront sandbox guide](docs/CLOUDFRONT_SANDBOX.md), with the lab's full restrictions in [AWS Academy sandbox limitations](docs/AWS_ACADEMY_SANDBOX_LIMITATIONS.txt). Old discussion snapshots are archived monthly to a private S3 bucket and transitioned to Glacier Flexible Retrieval.
 
 ---
 
 ## Project structure
 
 ```
-nimbus-rm/
+DS600-Group-Proj/
 ├── app/
 │   ├── __init__.py        # App factory, CSRF protection, template filters
 │   ├── config.py          # Settings from environment variables (.env)
@@ -91,6 +91,7 @@ nimbus-rm/
 │   └── nimbus-archive.timer # Monthly archive schedule
 ├── docs/
 │   ├── CLOUDFRONT_SANDBOX.md # Sandbox deployment steps, rationale, considerations
+│   ├── AWS_ACADEMY_SANDBOX_LIMITATIONS.txt # AWS Academy lab restrictions and access instructions
 │   ├── schema.sql         # Database schema (for reference/report)
 │   └── screenshots/
 ├── tests/                 # pytest suite (runs offline)
@@ -107,8 +108,8 @@ nimbus-rm/
 Requires Python 3.10 or newer.
 
 ```bash
-git clone https://github.com/<your-team>/nimbus-rm.git
-cd nimbus-rm
+git clone https://github.com/pujoglekar2026/DS600-Group-Proj.git
+cd DS600-Group-Proj
 python3 -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt

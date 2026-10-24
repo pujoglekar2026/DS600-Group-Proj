@@ -2,8 +2,9 @@
 
 This deployment uses CloudFormation to create the application network, EC2
 server, private RDS database, and CloudFront distribution. It targets the
-AWS Academy sandbox described in `Aws_sandbox_limitations` and must be deployed
-in **us-east-1**.
+AWS Academy sandbox described in
+[`AWS_ACADEMY_SANDBOX_LIMITATIONS.txt`](AWS_ACADEMY_SANDBOX_LIMITATIONS.txt) and
+must be deployed in **us-east-1**.
 
 ## Architecture
 
