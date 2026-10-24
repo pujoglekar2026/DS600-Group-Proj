@@ -1,0 +1,85 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Deploy the Nimbus RM Flask application on Amazon Linux 2023.
+
+Parameters:
+  LatestAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+    Description: Latest Amazon Linux 2023 x86_64 AMI.
+  InstanceType:
+    Type: String
+    Default: t3.micro
+    AllowedValues:
+      - t3.micro
+      - t3.small
+      - t3.medium
+    Description: EC2 instance size for Nimbus RM.
+  RepositoryUrl:
+    Type: String
+    Description: Public HTTPS URL of the Nimbus RM Git repository.
+  RepositoryBranch:
+    Type: String
+    Default: main
+    Description: Git branch to deploy.
+  AppSecretKey:
+    Type: String
+    NoEcho: true
+    MinLength: 32
+    Description: Random secret used to sign application sessions.
+
+Resources:
+  NimbusSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow public HTTP access to the Nimbus RM application.
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+
+  NimbusInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref LatestAmiId
+      InstanceType: !Ref InstanceType
+      SecurityGroupIds:
+        - !GetAtt NimbusSecurityGroup.GroupId
+      MetadataOptions:
+        HttpTokens: required
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 8
+            VolumeType: gp3
+            Encrypted: true
+            DeleteOnTermination: true
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -euxo pipefail
+
+          dnf install -y git
+          git clone https://github.com/pujoglekar2026/DS600-Group-Proj.git /opt/nimbus
+
+          cat > /opt/nimbus/.env <<'ENVEOF'
+          SECRET_KEY=${AppSecretKey}
+          DB_HOST=
+          DB_PORT=3306
+          DB_NAME=nimbus
+          DB_USER=admin
+          DB_PASSWORD=
+          MARKET_DATA_PROVIDER=yahoo
+          DEMO_FALLBACK=true
+          CACHE_TTL=900
+          ENVEOF
+
+          bash /opt/nimbus/deploy/setup_ec2.sh
+
+Outputs:
+  ApplicationURL:
+    Description: Public HTTP URL for the Nimbus RM application.
+    Value: !Sub "http://${NimbusInstance.PublicDnsName}"
+  InstancePublicIP:
+    Description: Public IP address of the Nimbus EC2 instance.
+    Value: !GetAtt NimbusInstance.PublicIp
