@@ -59,7 +59,8 @@ systemctl restart nginx
 
 echo "==> Health check"
 for i in $(seq 1 15); do
-  if curl -fsS http://127.0.0.1/api/health; then
+  # Nginx requires CloudFront's origin token; probe the app directly instead.
+  if curl -fsS http://127.0.0.1:8000/api/health; then
     echo
     echo "Nimbus RM is running."
     exit 0
