@@ -240,7 +240,9 @@ Resources:
   # ------------------------------------------------------------------ EC2
   WebServer:
     Type: AWS::EC2::Instance
-    DependsOn: PublicDefaultRoute  # the database is already waited for via its endpoint below
+    DependsOn:
+      - PublicDefaultRoute
+      - PublicSubnetRouteTableAssociation
     CreationPolicy:
       ResourceSignal: { Timeout: PT25M }
     Properties:

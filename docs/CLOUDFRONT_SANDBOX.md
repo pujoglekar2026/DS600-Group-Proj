@@ -19,6 +19,52 @@ deployment does not need a registered domain, Route 53, or a customer-managed
 TLS certificate. The Flask application and database remain the existing app;
 CloudFront is the public entry point and EC2 is its origin.
 
+## Quick EC2 launch test
+
+If the full stack fails or takes too long, first test EC2 without installing the
+app or creating RDS and CloudFront:
+
+1. In CloudFormation, create a stack using
+   `infra/ec2-smoke-test.yaml` in **us-east-1**.
+2. Keep the `t3.micro` default. The template creates a small VPC, public
+   subnet, and internet route, then launches one Amazon Linux 2023 instance
+   with the existing `LabInstanceProfile`. It opens no inbound ports and does
+   not run application setup.
+3. If the stack reaches `CREATE_COMPLETE`, use the `InstanceId` output to
+   confirm the instance appears as **Running** in EC2. The template also
+   outputs its assigned public and private IP addresses.
+4. Delete the test stack when finished to terminate the instance.
+
+If this minimal stack fails, the CloudFormation **Events** tab should show the
+specific EC2 launch error without waiting for database, CloudFront, or
+application bootstrap steps. If it succeeds, investigate the full stack's
+other resources or bootstrap separately.
+
+## Lightweight Nimbus deployment
+
+To run the application without the full stack's RDS, CloudFront, archive bucket,
+or Elastic IP, create a CloudFormation stack from
+`infra/nimbus-lite-stack.yaml` in **us-east-1**:
+
+1. Provide the public repository URL, branch, and an `AppSecretKey` generated
+   locally (for example, `python3 -c "import secrets; print(secrets.token_hex(32))"`).
+2. Keep the `t3.micro` default and leave `KeyName` empty to use Session Manager.
+   The stack creates its own VPC and public subnet.
+3. When creation completes, open the `ApplicationURL` output. This lite version
+   serves HTTP directly from EC2 and uses a local SQLite database. It is for
+   testing only: it does not provide HTTPS, managed database persistence,
+   CloudFront origin protection, or S3 snapshot archiving. The EC2 public IP
+   can change if the instance is replaced.
+4. To create the demo login, connect with Session Manager and run:
+
+   ```bash
+   cd /opt/nimbus
+   sudo -u nimbus .venv/bin/flask --app wsgi seed-demo
+   ```
+
+Delete the lite stack when finished; this terminates the instance and deletes
+its local database.
+
 ## Deploy
 
 1. Start the lab and check that the Region is **us-east-1**. Push the application
@@ -40,7 +86,9 @@ CloudFront is the public entry point and EC2 is its origin.
    Manager using the pre-created `LabInstanceProfile`.
 5. Wait for the stack to complete and the CloudFront distribution status to
    become **Deployed**. Open the `ApplicationURL` output. The first boot installs
-   Python packages and may take several minutes.
+   Python packages and may take several minutes. EC2 bootstrap waits until the
+   public subnet's internet route is associated before downloading the app and
+   dependencies.
 6. Create a demo login with Session Manager:
 
    ```bash

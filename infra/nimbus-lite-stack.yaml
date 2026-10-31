@@ -1,0 +1,170 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Lightweight Nimbus RM deployment for AWS Academy: public EC2 web app using
+  local SQLite, without RDS, CloudFront, S3 archiving, or an Elastic IP.
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label: { default: "Application" }
+        Parameters: [RepositoryUrl, RepositoryBranch, AppSecretKey]
+      - Label: { default: "Web server" }
+        Parameters: [InstanceType, KeyName, SSHAllowedCidr, LatestAmiId]
+
+Parameters:
+  RepositoryUrl:
+    Type: String
+    Description: Public HTTPS URL of the Nimbus RM Git repository.
+  RepositoryBranch:
+    Type: String
+    Default: main
+  AppSecretKey:
+    Type: String
+    NoEcho: true
+    MinLength: 32
+    Description: Random secret used to sign Flask sessions.
+  InstanceType:
+    Type: String
+    Default: t3.micro
+    AllowedValues: [t2.nano, t2.micro, t2.small, t2.medium, t3.nano, t3.micro, t3.small, t3.medium]
+  KeyName:
+    Type: String
+    Default: ""
+    Description: Optional EC2 key pair. Leave empty to use Session Manager only.
+  SSHAllowedCidr:
+    Type: String
+    Default: 127.0.0.1/32
+    Description: Set to your public IP/32 only if SSH is needed.
+  LatestAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+    Description: Latest Amazon Linux 2023 x86_64 AMI.
+
+Conditions:
+  HasKey: !Not [!Equals [!Ref KeyName, ""]]
+
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.2.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags: [{ Key: Name, Value: nimbus-lite-vpc }]
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags: [{ Key: Name, Value: nimbus-lite-igw }]
+
+  GatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.2.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      MapPublicIpOnLaunch: true
+      Tags: [{ Key: Name, Value: nimbus-lite-public }]
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+
+  PublicDefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: GatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnetRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      RouteTableId: !Ref PublicRouteTable
+
+  WebSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Public HTTP for the lightweight Nimbus app; optional SSH.
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+          Description: Direct HTTP access to the lite app.
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref SSHAllowedCidr
+          Description: Optional SSH, restricted to configured admin CIDR.
+      Tags: [{ Key: Name, Value: nimbus-lite-web-sg }]
+
+  WebServer:
+    Type: AWS::EC2::Instance
+    DependsOn:
+      - PublicDefaultRoute
+      - PublicSubnetRouteTableAssociation
+    CreationPolicy:
+      ResourceSignal: { Timeout: PT25M }
+    Properties:
+      ImageId: !Ref LatestAmiId
+      InstanceType: !Ref InstanceType
+      KeyName: !If [HasKey, !Ref KeyName, !Ref "AWS::NoValue"]
+      SubnetId: !Ref PublicSubnet
+      SecurityGroupIds: [!Ref WebSecurityGroup]
+      IamInstanceProfile: LabInstanceProfile
+      MetadataOptions:
+        HttpTokens: required
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 8
+            VolumeType: gp2
+            Encrypted: true
+            DeleteOnTermination: true
+      Tags: [{ Key: Name, Value: nimbus-lite-web }]
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -euxo pipefail
+          exec > /var/log/nimbus-bootstrap.log 2>&1
+          dnf install -y git aws-cfn-bootstrap
+          trap '/opt/aws/bin/cfn-signal -e 1 --stack ${AWS::StackName} --resource WebServer --region ${AWS::Region} || true' ERR
+          git clone --branch "${RepositoryBranch}" "${RepositoryUrl}" /opt/nimbus
+
+          set +x
+          cat > /opt/nimbus/.env <<'ENVEOF'
+          SECRET_KEY=${AppSecretKey}
+          MARKET_DATA_PROVIDER=yahoo
+          DEMO_FALLBACK=true
+          CACHE_TTL=900
+          SESSION_COOKIE_SECURE=false
+          ENVEOF
+          set -x
+          sed -i 's/^[ \t]*//' /opt/nimbus/.env
+
+          NIMBUS_PUBLIC_ORIGIN=true bash /opt/nimbus/deploy/setup_ec2.sh
+          /opt/aws/bin/cfn-signal -e 0 --stack ${AWS::StackName} --resource WebServer --region ${AWS::Region}
+
+Outputs:
+  ApplicationURL:
+    Description: HTTP URL for the lite Nimbus app. This endpoint is not HTTPS.
+    Value: !Sub "http://${WebServer.PublicDnsName}"
+  WebServerPublicIP:
+    Description: Public IPv4 address (may change if the instance is replaced).
+    Value: !GetAtt WebServer.PublicIp
+  InstanceId:
+    Description: EC2 instance ID.
+    Value: !Ref WebServer
+  VpcId:
+    Value: !Ref VPC

@@ -45,14 +45,21 @@ done
 echo "==> Installing systemd service"
 cp "$APP_DIR/deploy/nimbus.service" /etc/systemd/system/nimbus.service
 cp "$APP_DIR/deploy/nimbus-archive.service" /etc/systemd/system/nimbus-archive.service
-cp "$APP_DIR/deploy/nimbus-archive.timer" /etc/systemd/system/nimbus-archive.timer
 systemctl daemon-reload
 systemctl enable nimbus
 systemctl restart nimbus
-systemctl enable --now nimbus-archive.timer
+if grep -Eq '^SNAPSHOT_ARCHIVE_BUCKET=.+$' "$APP_DIR/.env"; then
+  cp "$APP_DIR/deploy/nimbus-archive.timer" /etc/systemd/system/nimbus-archive.timer
+  systemctl daemon-reload
+  systemctl enable --now nimbus-archive.timer
+fi
 
 echo "==> Configuring Nginx"
-cp "$APP_DIR/deploy/nginx-cloudfront.conf" /etc/nginx/nginx.conf
+if [ "${NIMBUS_PUBLIC_ORIGIN:-false}" = "true" ]; then
+  cp "$APP_DIR/deploy/nginx-public.conf" /etc/nginx/nginx.conf
+else
+  cp "$APP_DIR/deploy/nginx-cloudfront.conf" /etc/nginx/nginx.conf
+fi
 nginx -t
 systemctl enable nginx
 systemctl restart nginx
