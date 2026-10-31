@@ -83,9 +83,10 @@ DS600-Group-Proj/
 ├── infra/
 │   └── nimbus-merged-stack.yaml # CloudFront sandbox stack with S3 snapshot archive
 ├── deploy/
-│   ├── nginx-cloudfront.conf # Origin-token guard for the sandbox CloudFront deployment
+│   ├── nginx-cloudfront.conf # Origin-token guard for the CloudFront deployment
+│   ├── nginx-public.conf    # Optional direct-origin Nginx config
 │   ├── setup_ec2.sh       # Installs and starts the app on EC2
-│   ├── update.sh          # Pulls new code from GitHub and restarts
+│   ├── update.sh          # Pulls new code from GitHub and restarts the app
 │   ├── nimbus.service     # systemd unit for Gunicorn
 │   ├── nimbus-archive.service # systemd service for snapshot archiving
 │   └── nimbus-archive.timer # Monthly archive schedule
@@ -143,6 +144,11 @@ For the AWS Academy sandbox deployment with CloudFront, follow **[docs/CLOUDFRON
 2. In **us-east-1**, create a CloudFormation stack from `infra/nimbus-merged-stack.yaml` and enter the repository URL and generated secrets.
 3. Wait for CloudFront to report **Deployed**, then open the `ApplicationURL` stack output.
 4. Use Systems Manager Session Manager to seed the demo login on EC2.
+
+   ```bash
+   cd /opt/nimbus
+   sudo -u nimbus .venv/bin/flask --app wsgi seed-demo
+   ```
 
 To ship a code change: push to GitHub, then on the server run `sudo bash /opt/nimbus/deploy/update.sh`.
 
