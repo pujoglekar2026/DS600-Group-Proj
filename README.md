@@ -44,20 +44,23 @@ flowchart LR
         end
         EC2 -->|MySQL :3306<br/>allowed by DB security group| RDS
     end
-    CF -->|HTTP :80 + origin token| EC2
+    EIP["Elastic IP"] -.->|stable origin address| EC2
+    CF -->|HTTP :80 + origin token| EIP
     EC2 -->|Internet egress| IGW[Internet Gateway]
     EC2 -->|HTTPS| YF[Yahoo Finance]
-    IAM[IAM instance profile] -.-> EC2
+    IAM["Existing LabInstanceProfile"] -.-> EC2
 ```
 
 | AWS service | How Nimbus RM uses it |
 |---|---|
 | **Amazon CloudFront** | Public entry point with HTTPS from its default `cloudfront.net` certificate. Dynamic caching is disabled and session cookies/query parameters are forwarded. Nginx requires a secret origin header to deter direct-origin access. |
-| **Amazon VPC** | One public subnet hosts the app; two private subnets in separate Availability Zones are used for the RDS subnet group. Only the public subnet routes through the Internet Gateway; the database has no public route. |
-| **Amazon EC2** | A small Amazon Linux 2023 instance runs Nginx and Gunicorn/Flask as a `systemd` service. It needs outbound internet access for installation and Yahoo Finance; a NAT gateway is avoided to reduce sandbox cost. |
-| **Amazon RDS** | Single-AZ MySQL database in the private subnets holds users, clients and discussion snapshots. The database endpoint is not public and its security group accepts MySQL only from the EC2 security group. |
-| **Amazon S3** | A private, encrypted archive bucket stores snapshots with a `discussed_on` date older than five years; objects transition to Glacier Flexible Retrieval after 30 days. |
+| **Amazon VPC** | A VPC contains one public subnet for EC2 and two private subnets in separate Availability Zones for the RDS subnet group. The public subnet routes through an Internet Gateway; the private subnets have no internet route. Security groups permit HTTP to the web server and MySQL only from that server to RDS. |
+| **Amazon EC2 and EBS** | A small Amazon Linux 2023 instance runs Nginx and Gunicorn/Flask as a `systemd` service, with an encrypted 8 GiB `gp2` EBS root volume. It needs outbound internet access for installation and Yahoo Finance; a NAT gateway is avoided to reduce sandbox cost. |
+| **Elastic IP** | A stable public address is attached to EC2 and used as CloudFront's origin, so the origin address survives an instance stop/start. |
+| **Amazon RDS** | A 20 GiB, encrypted, single-AZ MySQL database in the private subnets holds users, clients and discussion snapshots. Its endpoint is not public and its security group accepts MySQL only from the EC2 security group. |
+| **Amazon S3** | A private, encrypted archive bucket stores snapshots with a `discussed_on` date older than five years; objects transition to Glacier Flexible Retrieval after 30 days. Glacier is an S3 storage class here, not a separately provisioned resource. |
 | **IAM** | The EC2 instance uses the sandbox's existing `LabInstanceProfile` for Systems Manager and, if permitted by its existing policies, S3 archive access. The sandbox does not allow creating IAM roles or policies. |
+| **AWS CloudFormation** | Creates and manages the infrastructure as a stack, making the sandbox deployment reproducible and removable. |
 
 The deployment is defined in [`infra/nimbus-merged-stack.yaml`](infra/nimbus-merged-stack.yaml). Its architecture, setup steps, resource rationales and limitations are documented in the [CloudFront sandbox guide](docs/CLOUDFRONT_SANDBOX.md), with the lab's full restrictions in [AWS Academy sandbox limitations](docs/AWS_ACADEMY_SANDBOX_LIMITATIONS.txt). Old discussion snapshots are archived monthly to a private S3 bucket and transitioned to Glacier Flexible Retrieval.
 
