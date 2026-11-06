@@ -2,10 +2,10 @@
 {% block title %}Stock notes{% endblock %}
 {% block content %}
 <div class="page-head">
-  <div><h1>Discussions</h1><p class="muted">Discussions about stocks for a client. To save a full comparison, use <a href="{{ url_for('main.compare') }}">Compare</a> → Save this discussion.</p></div>
+  <div><h1>Stock notes</h1><p class="muted">Quick notes about one stock for a client. Saved comparisons are under <a href="{{ url_for('main.discussions') }}">Discussions</a>; to save one, use <a href="{{ url_for('main.compare') }}">Compare</a> → Save this discussion.</p></div>
   <div class="actions">
     <a class="btn" href="{{ url_for('main.snapshots_export', **args) }}">Export CSV</a>
-    <a class="btn primary" href="{{ url_for('main.snapshot_new') }}">+ Discussion</a>
+    <a class="btn primary" href="{{ url_for('main.snapshot_new') }}">+ Stock note</a>
   </div>
 </div>
 

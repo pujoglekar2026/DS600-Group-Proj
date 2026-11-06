@@ -22,7 +22,8 @@
     <a href="{{ url_for('main.dashboard') }}" class="{{ 'active' if ep == 'main.dashboard' }}">Dashboard</a>
     <a href="{{ url_for('main.compare') }}" class="{{ 'active' if ep == 'main.compare' }}">Compare</a>
     <a href="{{ url_for('main.clients') }}" class="{{ 'active' if ep.startswith('main.client') }}">Clients</a>
-    <a href="{{ url_for('main.snapshots') }}" class="{{ 'active' if ep.startswith('main.snapshot') }}">Discussions</a>
+    <a href="{{ url_for('main.discussions') }}" class="{{ 'active' if ep.startswith('main.discussion') }}">Discussions</a>
+    <a href="{{ url_for('main.snapshots') }}" class="{{ 'active' if ep.startswith('main.snapshot') }}">Stock notes</a>
   </nav>
   <div class="user">
     <span>{{ g.user.full_name }}</span>

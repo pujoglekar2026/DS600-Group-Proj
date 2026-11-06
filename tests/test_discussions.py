@@ -200,7 +200,7 @@ def test_existing_client_and_date_filters():
 
 
 @pytest.mark.parametrize("overrides, message", [
-    ({"tickers": "AAPL"}, b"at least 2"),
+    ({"tickers": ""}, b"at least 1"),
     ({"client_interests": "   "}, b"client interests"),
     ({"client_id": "", "new_client_code": ""}, b"client"),
     ({"tickers": "AAPL,<x>"}, b"not a valid ticker"),
@@ -324,14 +324,14 @@ def test_navigation_and_pages_render():
     rm = login(app)
     did = discussion_id(save(rm))
     nav = rm.get("/compare").data
-    assert b'href="/snapshots"' in nav and b">Discussions</a>" in nav
+    assert b'href="/discussions"' in nav and b">Discussions</a>" in nav and b">Stock notes</a>" in nav
     assert b'action="/discussions"' in nav  # one Save for the whole comparison
     for url in ["/discussions", f"/discussions/{did}", "/discussions?company=apple&client_id=1"]:
         assert rm.get(url).status_code == 200, url
 
 
-def test_clients_list_counts_stock_discussions_and_last_spoke():
-    """The Clients list shows one discussion count while considering all records for last spoke."""
+def test_clients_list_counts_discussions_and_last_spoke():
+    """Found in the 4 Nov QA run (and again on 7 Nov): the Clients list must count saved discussions."""
     app = make_app()
     rm = login(app)
     save(rm, discussed_on="2026-10-20")
@@ -339,7 +339,7 @@ def test_clients_list_counts_stock_discussions_and_last_spoke():
     row = next(r for r in re.findall(r"<tr class=\"clickable\".*?</tr>", page, re.S) if "C-1001" in r)
     cells = [re.sub(r"<[^>]+>", "", c).strip() for c in re.findall(r"<td[^>]*>(.*?)</td>", row, re.S)]
     assert cells[0] == "C-1001"
-    assert cells[4:6] == ["0", "20 Oct 2026"]  # stock discussions, last spoke
+    assert cells[4:7] == ["1", "0", "20 Oct 2026"]  # discussions, stock notes, last spoke
 
 
 def test_dates_and_times_follow_singapore_time(monkeypatch):
@@ -517,3 +517,19 @@ def test_dashboard_counts_saved_discussions():
     month = re.search(r'This month</div><div class="tile-value">(\d+)', page).group(1)
     assert (tile, month) == ("1", "1")
     assert 'href="/discussions"' in page
+
+
+
+def test_menu_discussions_finds_a_saved_comparison_by_client_and_company():
+    """Gaurav's steps 8–9 as an RM clicks them: menu "Discussions" -> search -> the saved comparison.
+    On 7 Nov the menu item pointed at the one-stock notes page and showed "No discussions match"."""
+    app = make_app()
+    rm = login(app)
+    did = discussion_id(save(rm, new_client_code="C-AWS-01"))
+    nav = rm.get("/").data.decode()
+    menu = re.search(r"<nav.*?</nav>", nav, re.S).group(0)
+    target = re.search(r'href="([^"]+)"[^>]*>Discussions</a>', menu).group(1)
+    with app.app_context():
+        cid = db.session.get(Discussion, did).client_id
+    assert f"/discussions/{did}".encode() in rm.get(f"{target}?client_id={cid}").data
+    assert f"/discussions/{did}".encode() in rm.get(f"{target}?company=MSFT").data

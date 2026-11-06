@@ -353,6 +353,10 @@
   // ---------- 4. correlation ----------
   function renderCorrelation() {
     const { tickers, matrix } = state.data.correlation;
+    if (tickers.length < 2) {
+      $('corr-table').innerHTML = '<tbody><tr><td class="muted small">Correlation needs at least 2 companies.</td></tr></tbody>';
+      return;
+    }
     const companies = new Map(state.data.companies.map((c) => [c.ticker, c]));
     const label = (ticker) => companyLabel(companies.get(ticker) || { ticker });
     const head = `<thead><tr><th></th>${tickers.map((t) => `<th class="num">${esc(label(t))}</th>`).join('')}</tr></thead>`;

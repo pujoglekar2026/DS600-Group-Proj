@@ -2,7 +2,7 @@
 
 **A web app for relationship managers to compare companies and keep track of client conversations — hosted on AWS.**
 
-Group 1 project, extending the Nimbus case study. A relationship manager (RM) can compare two or more companies side by side, save a snapshot of each client discussion (price at the time, client interests, follow-up date), and look those records up later to prepare for the next conversation.
+Group 1 project, extending the Nimbus case study. A relationship manager (RM) can analyse one company or compare up to five side by side, save a snapshot of each client discussion (price at the time, client interests, follow-up date), and look those records up later to prepare for the next conversation.
 
 ![Comparison page](docs/screenshots/compare.png)
 
@@ -15,10 +15,11 @@ Group 1 project, extending the Nimbus case study. A relationship manager (RM) ca
 | Feature | What the RM can do | Workshop link |
 |---|---|---|
 | **One-screen company briefing** | For each company on the Compare page: key financials for the latest fiscal year (revenue, net income, total debt, equity in M/B), a fixed core row of revenue growth, net margin and debt-to-equity (flagged as not meaningful for banks), Yahoo Finance analyst ratings and price targets, and recent news with publisher, date, link and the source's own summary ("No summary provided by the source" when there is none) | Lesson 4, Feature 1 |
-| **Compare companies** | Pick 2–5 tickers and see their price performance on one chart, rebased to 100 or in actual prices, over 1 month to 5 years | Lesson 4, Feature 2 |
+| **Analyse or compare companies** | Pick 1–5 tickers (one company on its own, or several side by side) and see their price performance on one chart, rebased to 100 or in actual prices, over 1 month to 5 years | Lesson 4, Feature 2 |
 | **Save a client discussion** | One **Save** on the Compare page stores the whole comparison for a client: every company's price at the time of discussion (with its date and source), revenue growth, net margin, debt-to-equity, the financials, ratings and news shown, plus the client's interests (required), notes and a follow-up date. Demo data is never saved as a client record | Lesson 4, Features 3 & 4 |
 | **Search and reopen discussions** | **Discussions** page: search by client, by company (ticker or name) and by date, with SQL on the `discussions` and `discussion_companies` tables. **Open** shows the discussion read-only, exactly as saved, marked as a historical snapshot; it never fetches new market data | Lesson 4, Feature 5; stored in Amazon RDS |
-| **Stock notes** | A quicker record about one stock for a client (price then, interest level, tags, notes), with a "since discussion" price change, filters and CSV export | Extra |
+| **Export and follow-ups** | Export saved discussions to CSV (one row per company, using the current search filters). The dashboard lists follow-ups due in the next 14 days and the most-discussed tickers, from saved discussions | Extra |
+| **Stock notes** (secondary) | An optional quick note about one stock for a client (price then, interest level, tags, notes), with a "since discussion" price change, filters and CSV export. Saved discussions are the main record; stock notes are for a quick jotting without running a comparison | Extra |
 
 ### Advanced features
 
@@ -68,7 +69,7 @@ flowchart LR
 | **Amazon VPC** | Two public subnets (load balancer and servers) and two private subnets (database), each pair in two Availability Zones. Public subnets route through an Internet Gateway; private subnets have no internet route. Security groups: internet → load balancer on 80; load balancer → servers on 80; servers → RDS on 3306. Nothing else. |
 | **Amazon EC2 and EBS** | Each server runs Amazon Linux 2023 with Nginx and Gunicorn/Flask as a `systemd` service on an encrypted 8 GiB `gp2` root volume. Servers need outbound internet for installation and Yahoo Finance; a NAT gateway is avoided to reduce sandbox cost. The footer shows which server answered and which commit it runs. |
 | **Amazon RDS** | A 20 GiB, encrypted, single-AZ MySQL database in the private subnets holds users, clients, saved discussions (with their full snapshots) and stock notes. Because every saved discussion lives here, any server can reopen any discussion. Its endpoint is not public and its security group accepts MySQL only from the servers' security group. |
-| **Amazon S3** | A private, encrypted archive bucket stores stock notes with a `discussed_on` date older than five years; objects transition to Glacier Flexible Retrieval after 30 days. Every server has the monthly timer, but a database lock lets only one run it. |
+| **Amazon S3** | A private, encrypted archive bucket stores saved discussions (with their full snapshot) and stock notes whose discussion date is older than five years, each verified after upload before it is removed from RDS; objects transition to Glacier Flexible Retrieval after 30 days. Every server has the monthly timer, but a database lock lets only one run it. |
 | **IAM** | The servers use the sandbox's existing `LabInstanceProfile` for Systems Manager and S3 archive access. The sandbox does not allow creating IAM roles or policies. |
 | **AWS CloudFormation** | Creates the whole environment as one stack from [`infra/nimbus-merged-stack.yaml`](infra/nimbus-merged-stack.yaml), so it can be rebuilt the same way every time. The stack only reports success after a server has installed the app and signalled that it is healthy. |
 
@@ -92,7 +93,7 @@ DS600-Group-Proj/
 │   ├── routes.py          # HTML pages: dashboard, clients, discussions
 │   ├── auth.py            # Login, registration, logout
 │   ├── cli.py             # flask init-db / create-user / seed-demo / archive-snapshots
-│   ├── archive.py         # Verified export of old snapshots to S3
+│   ├── archive.py         # Verified export of old saved discussions and stock notes to S3
 │   ├── templates/         # Jinja2 HTML templates
 │   └── static/            # CSS and the comparison page's JavaScript (Chart.js)
 ├── infra/
@@ -170,11 +171,12 @@ For the full AWS Academy sandbox steps, follow **[docs/CLOUDFRONT_SANDBOX.md](do
 
 This is also Gaurav's acceptance test, in order:
 
-1. **Compare** — enter two or more tickers such as `AAPL, MSFT` or `D05.SI, O39.SI, U11.SI` (Singapore stocks end in `.SI`), or click a preset. You see price performance side by side (rebased to 100 or actual prices), then **Financials, ratings & news**: revenue growth, net margin and debt-to-equity, analyst ratings, and news with its source. Open **Financial ratios & trends** for year-by-year charts and industry templates.
+1. **Compare** — enter one ticker, or up to five, such as `AAPL, MSFT` or `D05.SI, O39.SI, U11.SI` (Singapore stocks end in `.SI`), or click a preset. You see price performance side by side (rebased to 100 or actual prices), then **Financials, ratings & news**: revenue growth, net margin and debt-to-equity, analyst ratings, and news with its source. Open **Financial ratios & trends** for year-by-year charts and industry templates.
 2. **Save** — at the bottom, under **Save this discussion**, choose a client (or add a new one with its client ID), set the discussion date, enter the **client interests** (required) and any notes or follow-up date, and click **Save discussion**. The whole comparison is stored. The page sends back exactly the figures it showed, with a tamper-proof signature from the server, so the record matches the screen even when a different server handles the Save; one click is stored once, even if the request is repeated.
 3. **Search** — open **Discussions** and search by client, by company (ticker such as `MSFT`, or a name such as `apple`) or by date. A client's page also lists their saved discussions.
 4. **Reopen** — click **Open**. The page shows the discussion exactly as saved (prices, ratios, financials, ratings and news), marked *Historical snapshot*. Nothing is fetched again; use *Compare again with today's data* to see current figures.
-5. **Stock notes** (optional) — a quick record about a single stock, with the price change since that discussion, filters and CSV export.
+5. **Export** — on **Discussions**, **Export CSV** downloads the saved discussions matching the current search (one row per company).
+6. **Stock notes** (optional) — a quick note about a single stock without running a comparison, with the price change since that discussion.
 
 | Dashboard | Client history |
 |---|---|

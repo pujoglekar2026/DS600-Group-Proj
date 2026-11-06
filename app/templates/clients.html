@@ -9,14 +9,15 @@
 {% if rows %}
 <div class="card table-wrap">
   <table class="table">
-    <thead><tr><th>Code</th><th>Name</th><th>Segment</th><th>Risk profile</th><th class="num">Discussions</th><th>Last spoke</th></tr></thead>
+    <thead><tr><th>Code</th><th>Name</th><th>Segment</th><th>Risk profile</th><th class="num">Discussions</th><th class="num">Stock notes</th><th>Last spoke</th></tr></thead>
     <tbody>
-    {% for c, n_notes, last in rows %}
+    {% for c, n_disc, n_notes, last in rows %}
       <tr class="clickable" onclick="location.href='{{ url_for('main.client_detail', client_id=c.id) }}'">
         <td class="mono">{{ c.client_code }}</td>
         <td><a href="{{ url_for('main.client_detail', client_id=c.id) }}">{{ c.name }}</a></td>
         <td>{{ c.segment or '—' }}</td>
         <td>{{ c.risk_profile or '—' }}</td>
+        <td class="num">{{ n_disc }}</td>
         <td class="num">{{ n_notes }}</td>
         <td>{{ last.strftime('%d %b %Y') if last else '—' }}</td>
       </tr>

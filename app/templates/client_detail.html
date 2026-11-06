@@ -14,7 +14,7 @@
     {% if tickers|length >= 2 %}
       <a class="btn" href="{{ url_for('main.compare', tickers=tickers[:5]|join(',')) }}">Compare discussed stocks</a>
     {% endif %}
-    <a class="btn" href="{{ url_for('main.snapshot_new', client_id=client.id) }}">+ Discussion</a>
+    <a class="btn" href="{{ url_for('main.snapshot_new', client_id=client.id) }}">+ Stock note</a>
   </div>
 </div>
 
@@ -47,8 +47,8 @@
 
 {% if client.snapshots %}
 <section class="card">
-  <h2>Discussions</h2>
-  <p class="muted small">Discussion compares the latest market price with the price when you spoke to the client — a quick talking point for the follow-up.</p>
+  <h2>Stock notes</h2>
+  <p class="muted small">"Since discussion" compares the latest market price with the price when you spoke to the client — a quick talking point for the follow-up.</p>
   <ol class="timeline">
   {% for s in client.snapshots %}
     {% set now = prices.get(s.ticker) %}

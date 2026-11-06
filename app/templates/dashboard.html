@@ -22,7 +22,7 @@
   <a class="tile tile-link" href="{{ url_for('main.discussions', date_from=month_start) }}" aria-label="View this month's discussions">
     <div class="tile-label">This month</div><div class="tile-value">{{ stats.this_month }}</div><span class="tile-action">View this month →</span>
   </a>
-  <a class="tile tile-link {{ 'alert' if stats.due }}" href="{{ url_for('main.snapshots', follow_up='due') }}" aria-label="View follow-ups due">
+  <a class="tile tile-link {{ 'alert' if stats.due }}" href="{{ url_for('main.discussions', follow_up='due') }}" aria-label="View follow-ups due">
     <div class="tile-label">Follow-ups due</div><div class="tile-value">{{ stats.due }}</div><span class="tile-action">Review follow-ups →</span>
   </a>
 </section>
@@ -38,16 +38,16 @@
     <h2>Follow-ups (next 14 days)</h2>
     {% if follow_ups %}
     <ul class="list">
-      {% for s in follow_ups %}
+      {% for d in follow_ups %}
       <li>
-        <span class="date {{ 'overdue' if s.follow_up_on < today }}">{{ s.follow_up_on.strftime('%d %b') }}</span>
-        <a href="{{ url_for('main.client_detail', client_id=s.client_id) }}">{{ s.client.name }}</a>
-        <span class="ticker">{{ s.ticker }}</span>
-        {% if s.follow_up_on < today %}<span class="pill red">Overdue</span>{% endif %}
+        <span class="date {{ 'overdue' if d.follow_up_on < today }}">{{ d.follow_up_on.strftime('%d %b') }}</span>
+        <a href="{{ url_for('main.discussion_detail', discussion_id=d.id) }}">{{ d.client.name }}</a>
+        {% for c in d.companies %}<span class="ticker">{{ c.ticker }}</span>{% endfor %}
+        {% if d.follow_up_on < today %}<span class="pill red">Overdue</span>{% endif %}
       </li>
       {% endfor %}
     </ul>
-    {% else %}<p class="muted">No follow-ups scheduled. Add a follow-up date when you record a discussion.</p>{% endif %}
+    {% else %}<p class="muted">No follow-ups scheduled. Add a follow-up date when you save a discussion.</p>{% endif %}
   </section>
 
   <section class="card">
@@ -73,7 +73,7 @@
   <h2>Most discussed companies</h2>
   <div class="chips">
     {% for t, n in top_tickers %}
-      <a class="chip" href="{{ url_for('main.snapshots', ticker=t) }}">{{ t }} <b>{{ n }}</b></a>
+      <a class="chip" href="{{ url_for('main.discussions', company=t) }}">{{ t }} <b>{{ n }}</b></a>
     {% endfor %}
     {% if top_tickers|length >= 2 %}
       <a class="chip accent" href="{{ url_for('main.compare', tickers=top_tickers|map('first')|join(',')) }}">Compare these →</a>

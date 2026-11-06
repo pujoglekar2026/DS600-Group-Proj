@@ -4,7 +4,10 @@
 <div class="page-head">
   <div><h1>Saved discussions</h1>
     <p class="muted">Every saved comparison with its client interests. Search by client, company or date, then open one to see it exactly as it was saved.</p></div>
-  <div class="actions"><a class="btn primary" href="{{ url_for('main.compare') }}">+ New comparison</a></div>
+  <div class="actions">
+    <a class="btn" href="{{ url_for('main.discussions_export', **args) }}">Export CSV</a>
+    <a class="btn primary" href="{{ url_for('main.compare') }}">+ New comparison</a>
+  </div>
 </div>
 
 <form class="card filters" method="get">
@@ -15,7 +18,13 @@
     </select></label>
   <label class="grow">Company <input name="company" value="{{ args.get('company','') }}" placeholder="Ticker or name, e.g. AAPL or apple"></label>
   <label>From <input type="date" name="date_from" value="{{ args.get('date_from','') }}"></label>
-  <label>To <input type="date" name="date_to" value="{{ args.get('date_to','') }}"></label>
+  <label>To <input type="date" name="date_to" aria-label="To date" value="{{ args.get('date_to','') }}"></label>
+  <label>Follow-up
+    <select name="follow_up">
+      <option value="">Any</option>
+      <option value="due" {{ 'selected' if args.get('follow_up') == 'due' }}>Due or overdue</option>
+      <option value="upcoming" {{ 'selected' if args.get('follow_up') == 'upcoming' }}>Upcoming</option>
+    </select></label>
   <div class="filter-actions">
     <button class="btn primary">Search</button>
     <a class="btn" href="{{ url_for('main.discussions') }}">Reset</a>

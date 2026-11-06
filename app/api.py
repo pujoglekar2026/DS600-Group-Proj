@@ -111,7 +111,7 @@ def _with_retrieved_at(payload, sources):
 @bp.route("/compare")
 @login_required
 def compare():
-    tickers = _require_tickers(min_n=2)
+    tickers = _require_tickers(min_n=1)  # one company on its own is allowed (review, 7 Nov)
     period = validate_period(request.args.get("period", "1y"))
     sources = Sources()
     # Signed, so the Save form can send back exactly these figures (see app/signing.py).

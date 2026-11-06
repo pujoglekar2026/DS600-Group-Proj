@@ -10,13 +10,15 @@
 * Reopen: shows the saved snapshot read-only. It never calls market data, so a
   historical discussion is never mixed with today's prices.
 """
+import csv
+import io
 import json
 import re
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from flask import abort, current_app, flash, g, redirect, render_template, request, url_for
+from flask import Response, abort, current_app, flash, g, redirect, render_template, request, url_for
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 
@@ -26,7 +28,7 @@ from .industry import TEMPLATES, template_payload
 from .models import Client, Discussion, DiscussionCompany, db
 from .signing import verify_text
 from .routes import _create_client_from_form, _own_client, _parse_date, bp
-from .timeutil import local_today
+from .timeutil import format_local, local_today
 
 SNAPSHOT_VERSION = 1
 SUBMISSION_ID_RE = re.compile(r"[A-Za-z0-9-]{8,64}")
@@ -88,8 +90,8 @@ def build_discussion(form):
     except ValueError as exc:
         raise SaveError(str(exc)) from None
     limit = current_app.config["MAX_COMPARE_TICKERS"]
-    if len(tickers) < 2:
-        raise SaveError("Choose at least 2 companies to save a comparison.")
+    if len(tickers) < 1:
+        raise SaveError("Choose at least 1 company to save.")
     if len(tickers) > limit:
         raise SaveError(f"Save at most {limit} companies at once.")
     interests = form.get("client_interests", "").strip()
@@ -209,7 +211,41 @@ def _filtered_discussions(args):
         q = q.filter(Discussion.discussed_on >= _parse_date(args["date_from"]))
     if _parse_date(args.get("date_to")):
         q = q.filter(Discussion.discussed_on <= _parse_date(args["date_to"]))
+    if args.get("follow_up") == "due":
+        q = q.filter(Discussion.follow_up_on.isnot(None), Discussion.follow_up_on <= local_today())
+    elif args.get("follow_up") == "upcoming":
+        q = q.filter(Discussion.follow_up_on > local_today())
     return q.order_by(Discussion.discussed_on.desc(), Discussion.id.desc())
+
+
+def _csv_safe(value):
+    """Stop spreadsheet apps treating free text such as notes as a formula."""
+    text = "" if value is None else str(value)
+    return "'" + text if text[:1] in ("=", "+", "-", "@", "\t", "\r") else text
+
+
+@bp.route("/discussions/export.csv")
+@login_required
+def discussions_export():
+    """Saved discussions as CSV, one row per company, with the same filters as the search."""
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["Discussion date", "Client code", "Client name", "Ticker", "Company", "Currency",
+                "Price at discussion", "Price date", "Price source", "Revenue growth", "Net margin",
+                "Debt to equity", "Fiscal year", "Client interests", "Notes", "Follow up on",
+                "Saved at (SGT)", "Link"])
+    for d in _filtered_discussions(request.args).all():
+        for c in d.companies:
+            w.writerow([d.discussed_on, d.client.client_code, _csv_safe(d.client.name), c.ticker,
+                        _csv_safe(c.company_name), c.currency,
+                        c.stock_price if c.stock_price is not None else "", c.price_date or "",
+                        c.price_source or "",
+                        *["" if v is None else repr(v) for v in (c.revenue_growth, c.net_margin, c.debt_to_equity)],
+                        c.fiscal_year or "", _csv_safe(d.client_interests), _csv_safe(d.notes),
+                        d.follow_up_on or "", format_local(d.created_at, "%Y-%m-%d %H:%M").replace(" SGT", ""),
+                        url_for("main.discussion_detail", discussion_id=d.id, _external=True)])
+    return Response(buf.getvalue(), mimetype="text/csv",
+                    headers={"Content-Disposition": "attachment; filename=nimbus_discussions.csv"})
 
 
 @bp.route("/discussions")

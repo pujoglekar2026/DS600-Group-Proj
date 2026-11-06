@@ -12,7 +12,7 @@ from .api import parse_tickers
 from .auth import login_required
 from .industry import TEMPLATES
 from .market import DEMO_COMPANIES, PERIODS, MarketDataError
-from .models import Client, Discussion, Snapshot, db
+from .models import Client, Discussion, DiscussionCompany, Snapshot, db
 from .timeutil import local_today
 
 bp = Blueprint("main", __name__)
@@ -62,13 +62,17 @@ def _latest_prices(tickers):
 def dashboard():
     today = local_today()
     base = Snapshot.query.filter_by(rm_id=g.user.id)
-    follow_ups = (base.filter(Snapshot.follow_up_on.isnot(None), Snapshot.follow_up_on <= today + timedelta(days=14))
-                  .order_by(Snapshot.follow_up_on).limit(10).all())
+    # Saved discussions are the main record: follow-ups and top tickers come from them.
+    mine = Discussion.query.filter(Discussion.rm_id == g.user.id)
+    follow_ups = (mine.filter(Discussion.follow_up_on.isnot(None),
+                              Discussion.follow_up_on <= today + timedelta(days=14))
+                  .order_by(Discussion.follow_up_on).limit(10).all())
     recent = (Discussion.query.filter_by(rm_id=g.user.id)
               .order_by(Discussion.discussed_on.desc(), Discussion.id.desc()).limit(6).all())
-    top_tickers = (db.session.query(Snapshot.ticker, func.count(Snapshot.id))
-                   .filter(Snapshot.rm_id == g.user.id).group_by(Snapshot.ticker)
-                   .order_by(func.count(Snapshot.id).desc()).limit(5).all())
+    top_tickers = (db.session.query(DiscussionCompany.ticker, func.count(DiscussionCompany.id))
+                   .join(Discussion).filter(Discussion.rm_id == g.user.id)
+                   .group_by(DiscussionCompany.ticker)
+                   .order_by(func.count(DiscussionCompany.id).desc(), DiscussionCompany.ticker).limit(5).all())
     stats = {
         "clients": Client.query.filter_by(rm_id=g.user.id).count(),
         "snapshots": base.count(),
@@ -76,7 +80,7 @@ def dashboard():
         "discussions": Discussion.query.filter_by(rm_id=g.user.id).count(),
         "this_month": Discussion.query.filter(Discussion.rm_id == g.user.id,
                                               Discussion.discussed_on >= today.replace(day=1)).count(),
-        "due": base.filter(Snapshot.follow_up_on.isnot(None), Snapshot.follow_up_on <= today).count(),
+        "due": mine.filter(Discussion.follow_up_on.isnot(None), Discussion.follow_up_on <= today).count(),
     }
     return render_template("dashboard.html", stats=stats, follow_ups=follow_ups,
                            recent=recent, top_tickers=top_tickers, today=today,
@@ -113,20 +117,20 @@ def compare():
 def clients():
     # Saved discussions and stock notes are counted separately; "last spoke" is the
     # latest date from either.
-    disc = (db.session.query(Discussion.client_id,
+    disc = (db.session.query(Discussion.client_id, func.count(Discussion.id).label("n"),
                              func.max(Discussion.discussed_on).label("last"))
             .filter(Discussion.rm_id == g.user.id).group_by(Discussion.client_id).subquery())
     notes = (db.session.query(Snapshot.client_id, func.count(Snapshot.id).label("n"),
                               func.max(Snapshot.discussed_on).label("last"))
              .filter(Snapshot.rm_id == g.user.id).group_by(Snapshot.client_id).subquery())
     rows = []
-    for client, last_disc, n_notes, last_note in (
-            db.session.query(Client, disc.c.last, notes.c.n, notes.c.last)
+    for client, n_disc, last_disc, n_notes, last_note in (
+            db.session.query(Client, disc.c.n, disc.c.last, notes.c.n, notes.c.last)
             .outerjoin(disc, disc.c.client_id == Client.id)
             .outerjoin(notes, notes.c.client_id == Client.id)
             .filter(Client.rm_id == g.user.id).order_by(Client.client_code)):
         last = max((d for d in (last_disc, last_note) if d), default=None)
-        rows.append((client, n_notes or 0, last))
+        rows.append((client, n_disc or 0, n_notes or 0, last))
     return render_template("clients.html", rows=rows)
 
 

@@ -36,7 +36,8 @@ def test_compare_api(logged_in):
 
 
 def test_compare_validation(logged_in):
-    assert logged_in.get("/api/compare?tickers=AAPL").status_code == 400
+    assert logged_in.get("/api/compare?tickers=").status_code == 400
+    assert logged_in.get("/api/compare?tickers=AAPL").status_code == 200  # one company allowed since 7 Nov
     assert logged_in.get("/api/compare?tickers=A,B,C,D,E,F").status_code == 400
     assert logged_in.get("/api/compare?tickers=AAPL,MSFT&period=99y").status_code == 400
     assert logged_in.get("/api/compare?tickers=AAPL,BAD%3B--").status_code == 400
