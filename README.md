@@ -164,6 +164,19 @@ For the full AWS Academy sandbox steps, follow **[docs/CLOUDFRONT_SANDBOX.md](do
 
 **Do not delete the stack to redeploy:** deleting it deletes the database and every saved comparison.
 
+### Recorded evidence
+
+The AWS Academy Sandbox deletes every resource at the end of each session, so our test runs are recorded with screenshots and reports in [`docs/evidence/`](docs/evidence/). The instructor agreed that recorded evidence is acceptable for Feature 6.
+
+| Folder | What it shows |
+|---|---|
+| [`2026-11-05-aws-scaling`](docs/evidence/2026-11-05-aws-scaling/README.md) | **Feature 6:** load from `scripts/load_test.py` scales the Auto Scaling group from 1 to 3 servers and back to 1; a saved comparison opens on all three servers with identical figures |
+| [`2026-11-05-aws-fix-check`](docs/evidence/2026-11-05-aws-fix-check/README.md) | With three servers running: a comparison shown by one server and saved by another stores identical figures; one click saves one record; rolling updates to the fixed code |
+| [`2026-11-04-aws-final`](docs/evidence/2026-11-04-aws-final/README.md) | Stack created from this repository in 13 minutes; save, search and reopen on Amazon RDS; a rolling update to a new commit with 0 failed requests |
+| [`2026-11-04-aws-deploy`](docs/evidence/2026-11-04-aws-deploy/README.md) | First Sandbox deployment and the save–search–reopen check on Amazon RDS |
+| [`2026-11-04-feature1-local`](docs/evidence/2026-11-04-feature1-local/README.md) | Feature 1 with live Yahoo Finance data, run locally |
+| [`2026-11-04-features3-5-local`](docs/evidence/2026-11-04-features3-5-local/README.md) | Features 3–5 acceptance test with live Yahoo Finance data, run locally |
+
 ---
 
 ## Using the app
